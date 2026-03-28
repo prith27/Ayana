@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "skills": {
+    "lens-studio-2d-ui": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "08b5ddacdcbcf32e884844e334c307502fa320e61594db2f356ad42f5ad5a80b"
+    },
+    "lens-studio-camera-texture": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "a0f3df9735066645d830b501cde8498f1a67a3395de5ad14410481a1745e158b"
+    },
+    "lens-studio-face-tracking": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "35db20d82ceeb99bbea42c5969e41a83fbaa085d9aadef671edbda13b0a98f1a"
+    },
+    "lens-studio-instantiation": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "18c317a00b0fd928e4c95847d89932170120ba4076199159028ae011e684202b"
+    },
+    "lens-studio-materials-shaders": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "41f3944cdef0fd7d181c4943211de0de113a668fe6d55099dac72e7dfaa36234"
+    },
+    "lens-studio-scripting": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "cc7d6a1e7c740d97ae9eca6b3a4b1d22b66874763688b7077eb0451378ed56bd"
+    },
+    "lens-studio-snap-decorators": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "ea4eadb2bb186cc819aa1b5fd7ba956120c2cbcf25334b4e2213310d0e72851f"
+    },
+    "lens-studio-user-context": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "fff5661507761fe4b860365fa72d405006cfdf77e0366920cab857dae293483c"
+    },
+    "lens-studio-vfx": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "f16a2813f25fb35bd4b8318ebb50acbf1c09c8ac386cc7a0cba39398d05525d1"
+    },
+    "lens-studio-volumetric-drawing": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "ae0f529baeb3f54ed1121ffc36d83a72bdce6a788293f7303c1e6077802d1a2d"
+    },
+    "lens-studio-world-query": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "bdb34887063fd2918bffb9b4221e4f59b1b0557dcf450ec4619d06d12e3b7b85"
+    },
+    "spectacles-ai": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "851a6aadb7a1a41ece19878a478d013230732f7f3ddf272ce79f06f0e88267f2"
+    },
+    "spectacles-auth": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "880e4a303a48a27e39ce204bfca7ad10f13d39ded0036f755e8c66023b7be036"
+    },
+    "spectacles-ble": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "550d9661394112e8ffa17c21d7d30799010e539b10c0954ac594ccee897fed7d"
+    },
+    "spectacles-cloud": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "958794434cdf62b115b97f3a61a91662ee1b2c890cd35f28cc3270ab74c0af14"
+    },
+    "spectacles-connected-lenses": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "1a178d673de8506c5c0f1285c3450e551a4d0acdc06f069999a210050569d6fa"
+    },
+    "spectacles-lens-essentials": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "f99d1f67d9bf14a54230e165b6e84388f725bf8437ec825c1fb03e826a059337"
+    },
+    "spectacles-networking": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "2c241e8fdc28e1e3b5903c47cd33d790cc4dc263d257dcda0cecbed17f7d38d9"
+    },
+    "spectacles-snapml": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "a8b961eb8c290ddea5e8d7a5a6114075236bb57ad3a8486c1d5502a2a26596fd"
+    },
+    "spectacles-ui-kit": {
+      "source": "rolandsmeenk/LensStudioAgents",
+      "sourceType": "github",
+      "computedHash": "28570f22f60ae1f0af243d9c5de1ccf63c9ed977661144d03ae13ff73511e983"
+    }
+  }
+}
