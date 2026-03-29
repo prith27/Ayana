@@ -141,7 +141,7 @@ def move_to_landmark(
             f"Ayana is guiding the journey toward {normalized_landmark_name} in "
             f"{city_name}, {country_name}. Say only one short transition line like "
             f"heading into {normalized_landmark_name}, do not describe the place "
-            "yet, and wait for the follow-up before describing arrival. DONT SAY ANYTHING LIKE WELCOME , JUST SOMETHING THATS TRANSITION IN NATURE LIKE LETS DIVE INTO"
+            f"yet, and PLEASE wait for the follow-up for acutally describing {normalized_landmark_name}. DO NOT USE WORDS LIKE WELCOME , JUST SOMETHING THATS TRANSITION IN NATURE LIKE LETS DIVE INTO"
         )
     )
     frontend_action = build_frontend_action(

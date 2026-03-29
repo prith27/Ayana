@@ -883,6 +883,7 @@ function buildStartupBootstrapText(prepResponse: AyanaPrepResponse): string {
 
   return [
     'Greet the user as Ayana in one or two short spoken sentences.',
+    'Start always with a greeting like "Hello, I\'m Ayana."',
     'Present only the three generated itinerary options listed below, naturally and clearly.',
     'Invite the user to choose one of the options.',
     'Do not invent other options or cities.',
