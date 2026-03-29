@@ -131,6 +131,7 @@ interface LiveAgentEvent {
 
 const MAX_RETRIES = 5
 const USER_ID_STORAGE_KEY = 'ayana-live-user-id'
+const INITIAL_SOCKET_CONNECT_DELAY_MS = 75
 const END_SESSION_IDLE_DRAIN_MS = 2_000
 const END_SESSION_MAX_DRAIN_MS = 15_000
 
@@ -147,6 +148,7 @@ export function LiveAgentSession({
 }: LiveAgentSessionProps) {
   const websocketRef = useRef<WebSocket | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initialConnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCountRef = useRef(0)
   const sessionIdRef = useRef<string | null>(null)
   const sessionPersonaRef = useRef<Persona | null>(null)
@@ -231,7 +233,13 @@ export function LiveAgentSession({
     sessionIdRef.current = `ayana-session-${crypto.randomUUID()}`
     bootstrappedSessionRef.current = null
     retryCountRef.current = 0
-    openSocket()
+    if (initialConnectTimerRef.current) {
+      clearTimeout(initialConnectTimerRef.current)
+    }
+    initialConnectTimerRef.current = setTimeout(() => {
+      initialConnectTimerRef.current = null
+      openSocket()
+    }, INITIAL_SOCKET_CONNECT_DELAY_MS)
     // openSocket reads only refs so the effect stays keyed to persona changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persona, prepResponse])
@@ -281,11 +289,12 @@ export function LiveAgentSession({
       handleServerMessage(event.data)
     }
 
-    socket.onerror = () => {
-      // Browser gives a generic Event here; use onclose code/reason for diagnosis.
-      console.error(
-        '[live-agent] websocket error (if backend is down, start FastAPI on the URL from NEXT_PUBLIC_LIVE_AGENT_WS_URL or port 8000)'
-      )
+    socket.onerror = (error) => {
+      console.error('[live-agent] websocket error', {
+        error,
+        sessionId,
+        readyState: socket.readyState,
+      })
       setAgentDisconnected()
     }
 
@@ -293,7 +302,7 @@ export function LiveAgentSession({
       console.info('[live-agent] websocket closed', {
         sessionId,
         code: event.code,
-        reason: event.reason || '(none)',
+        reason: event.reason,
         wasClean: event.wasClean,
       })
       websocketRef.current = null
@@ -789,6 +798,11 @@ export function LiveAgentSession({
     shouldReconnectRef.current = allowReconnect
     clearPendingEndSessionTimers()
     pendingEndSessionRef.current = false
+
+    if (initialConnectTimerRef.current) {
+      clearTimeout(initialConnectTimerRef.current)
+      initialConnectTimerRef.current = null
+    }
 
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current)

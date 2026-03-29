@@ -121,7 +121,12 @@ async def websocket_endpoint(
         f"affective_dialog={affective_dialog}"
     )
     await websocket.accept()
-    logger.debug("WebSocket connection accepted")
+    logger.info(
+        "WebSocket connection accepted: user_id=%s session_id=%s prep_id=%s",
+        user_id,
+        session_id,
+        prep_id,
+    )
     if not prep_id:
         logger.warning("WebSocket connection missing prep_id; closing session")
         await websocket.close(code=1008, reason="Missing prep_id")
@@ -370,16 +375,26 @@ async def websocket_endpoint(
             background_tool_result_task(),
         )
         logger.debug("asyncio.gather completed normally")
-    except WebSocketDisconnect:
-        logger.debug("Client disconnected normally")
+    except WebSocketDisconnect as exc:
+        logger.info(
+            "Client websocket disconnected: user_id=%s session_id=%s code=%s",
+            user_id,
+            session_id,
+            exc.code,
+        )
     except Exception as e:
-        logger.error(f"Unexpected error in streaming tasks: {e}", exc_info=True)
+        logger.error(
+            "Unexpected error in streaming tasks for session_id=%s: %s",
+            session_id,
+            e,
+            exc_info=True,
+        )
     finally:
         # ========================================
         # Phase 4: Session Termination
         # ========================================
 
         # Always close the queue, even if exceptions occurred
-        logger.debug("Closing live_request_queue")
+        logger.info("Closing live session resources for session_id=%s", session_id)
         live_request_queue.close()
         unregister_result_queue(session_id)

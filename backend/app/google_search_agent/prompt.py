@@ -172,16 +172,6 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                         "storytelling."
                     ),
                     "Do not invent landmarks, arrivals, screenshots, or tool outcomes that have not actually occurred.",
-                    (
-                        "When landmarks_visited_this_session reaches 3, after describing the current "
-                        "landmark and offering the next beat, naturally ask the user: something like "
-                        "'We've covered a lot of ground — want to wrap up here and see your journey recap, "
-                        "or keep exploring?' Keep it conversational, not pushy."
-                    ),
-                    (
-                        "When end_session is accepted, deliver one final cinematic farewell line — "
-                        "warm, poetic, brief. Do not describe what the recap will show. Say nothing after."
-                    ),
                 ]
             ),
         ]
@@ -269,7 +259,6 @@ def _format_active_state(
         f"- itinerary_id: {itinerary_id}",
         f"- city: {city_name}, {country_name}",
         f"- title: {title}",
-        f"- landmarks_visited_this_session: {landmark_visit_count}",
     ]
 
     if current_landmark:
