@@ -28,6 +28,7 @@ import {
   type AyanaPrepResponse,
   type Persona,
 } from '@/lib/ayana/prep'
+import { initTranscript } from '@/lib/ayana/transcript'
 import { PrepLoadingOverlay } from '@/components/map/PrepLoadingOverlay'
 import { GeneratedItineraryOverlay } from '@/components/map/GeneratedItineraryOverlay'
 import { CityOverlay } from '@/components/map/CityOverlay'
@@ -362,6 +363,7 @@ export default function LandingPage() {
     }
 
     setPersona(selectedPersona)
+    initTranscript(selectedPersona)
     setPrepError(null)
     setRuntimeError(null)
     setLandmarkError(null)

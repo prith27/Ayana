@@ -1,19 +1,71 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react'
+import type { CSSProperties } from 'react'
 import Link from 'next/link'
+import { loadPersistedTranscript } from '@/lib/ayana/transcript'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DATA
+// TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Persona = 'adventure' | 'romantic' | 'peaceful'
 
-const SELECTED_PERSONA: Persona = 'adventure'
+interface StopItem {
+  id: string
+  name: string
+  area: string
+  type: string
+  desc: string
+  image_url?: string | null
+}
+
+interface FoodItem {
+  rank: string
+  name: string
+  cuisine: string
+  rating: number
+  price: string
+}
+
+interface ActivityItem {
+  name: string
+  type: string
+  rating: number
+  highlight: boolean
+}
+
+interface StatItem {
+  value: number
+  suffix: string
+  label: string
+  color: string
+}
+
+interface DnaItem {
+  trait: string
+  pct: number
+  color: string
+}
+
+interface PersonaConfig {
+  label: string
+  tagline: string
+  color: string
+  colorLight: string
+  glow: string
+  glowDim: string
+  bgDeep: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATIC CONFIG
+// ─────────────────────────────────────────────────────────────────────────────
+
 const YEAR = '2026'
 const TOTAL_CARDS = 10
 
-const PERSONA_CFG = {
+const PERSONA_CFG: Record<Persona, PersonaConfig> = {
   adventure: {
     label: 'ADVENTURER',
     tagline: 'Bold. Fearless. Unstoppable.',
@@ -43,44 +95,87 @@ const PERSONA_CFG = {
   },
 }
 
-const PC = PERSONA_CFG[SELECTED_PERSONA]
-
-const STOPS = [
-  { id: '01', name: 'Senso-ji Temple',  area: 'Asakusa',           type: 'Heritage',       desc: "Tokyo's oldest and most sacred Buddhist temple — where ancient Japan breathes." },
-  { id: '02', name: 'Shibuya Crossing', area: 'Shibuya',           type: 'Urban Icon',     desc: 'The most electric pedestrian crossing on the planet. Every signal change, a thousand stories.' },
-  { id: '03', name: 'Tokyo Tower',      area: 'Shiba-koen',        type: 'Landmark',       desc: 'Iconic lattice silhouette burning orange against the city skyline.' },
-  { id: '04', name: 'Fushimi Inari',    area: 'Fushimi, Kyoto',    type: 'Sacred Site',    desc: 'Thousands of vermilion torii gates weaving a path up the sacred mountain.' },
-  { id: '05', name: 'Mount Fuji',       area: 'Fujinomiya',        type: 'Natural Wonder', desc: '3,776 metres of sacred silence. Japan\'s eternal crown above the clouds.' },
-]
-
-const FOOD = [
-  { rank: '01', name: 'Tsukiji Outer Market', rating: 4.6, cuisine: 'Seafood Market', price: '¥¥' },
-  { rank: '02', name: 'Ichiran Ramen',        rating: 4.4, cuisine: 'Japanese Ramen', price: '¥¥' },
-  { rank: '03', name: 'Harajuku Crepes',      rating: 4.3, cuisine: 'Street Food',    price: '¥'  },
-]
-
-const ACTIVITIES = [
-  { name: 'TeamLab Borderless',  rating: 4.8, type: 'Digital Art',       highlight: true  },
-  { name: 'Meiji Shrine Walk',   rating: 4.7, type: 'Cultural',          highlight: false },
-  { name: 'Shinjuku Nightlife',  rating: 4.5, type: 'Urban Exploration', highlight: false },
-]
-
-const STATS = [
-  { value: 142, suffix: 'km',  label: 'DISTANCE\nCOVERED',        color: '#D4692A' },
-  { value: 7,   suffix: '',    label: 'NEIGHBORHOODS\nEXPLORED',   color: '#22A898' },
-  { value: 23,  suffix: '',    label: 'PLACES\nDISCOVERED',        color: '#C45C72' },
-  { value: 94,  suffix: '',    label: 'EXPLORATION\nSCORE',        color: '#FFD27F' },
-]
-
-const DNA = [
-  { trait: 'Cultural Explorer', pct: 82, color: '#D4692A' },
-  { trait: 'Urban Adventurer',  pct: 95, color: '#FF9454' },
-  { trait: 'Food Seeker',       pct: 71, color: '#C45C72' },
-  { trait: 'Nature Chaser',     pct: 64, color: '#22A898' },
-]
+const STAT_COLORS = ['#D4692A', '#22A898', '#C45C72', '#FFD27F']
+const DNA_COLORS  = ['#D4692A', '#FF9454', '#C45C72', '#22A898', '#9B64E8', '#3DD9C9']
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOK
+// RECAP CONTEXT — null until real session data is loaded
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RecapContextValue {
+  persona: Persona
+  pc: PersonaConfig
+  city: string
+  country: string
+  stops: StopItem[]
+  food: FoodItem[]
+  activities: ActivityItem[]
+  stats: StatItem[]
+  dna: DnaItem[]
+}
+
+const RecapCtx = createContext<RecapContextValue | null>(null)
+// Non-null assertion is safe: cards only render inside the Provider with real data
+const useRecap = () => useContext(RecapCtx) as RecapContextValue
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS: map backend recap response → context value
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BackendRecap {
+  persona: string
+  city: string
+  country: string
+  stops: { name: string; area: string; type: string; desc: string; image_url?: string | null }[]
+  food: { name: string; cuisine: string; rating: number; price: string }[]
+  activities: { name: string; type: string; rating: number; highlight: boolean }[]
+  stats: { distance_km: number; neighborhoods: number; places_discovered: number; exploration_score: number }
+  dna: { trait: string; pct: number }[]
+}
+
+function mapBackendToContext(recap: BackendRecap): RecapContextValue {
+  const persona = (['adventure', 'romantic', 'peaceful'].includes(recap.persona)
+    ? recap.persona
+    : 'adventure') as Persona
+  const pc = PERSONA_CFG[persona]
+
+  const stops: StopItem[] = recap.stops.map((s, i) => ({
+    id: String(i + 1).padStart(2, '0'),
+    name: s.name,
+    area: s.area,
+    type: s.type,
+    desc: s.desc,
+    image_url: s.image_url ?? null,
+  }))
+
+  const food: FoodItem[] = recap.food.map((f, i) => ({
+    rank: String(i + 1).padStart(2, '0'),
+    name: f.name,
+    cuisine: f.cuisine,
+    rating: f.rating,
+    price: f.price,
+  }))
+
+  const activities: ActivityItem[] = recap.activities
+
+  const stats: StatItem[] = [
+    { value: recap.stats.distance_km,       suffix: 'km', label: 'DISTANCE\nCOVERED',      color: STAT_COLORS[0] },
+    { value: recap.stats.neighborhoods,     suffix: '',   label: 'NEIGHBORHOODS\nEXPLORED', color: STAT_COLORS[1] },
+    { value: recap.stats.places_discovered, suffix: '',   label: 'PLACES\nDISCOVERED',      color: STAT_COLORS[2] },
+    { value: recap.stats.exploration_score, suffix: '',   label: 'EXPLORATION\nSCORE',      color: STAT_COLORS[3] },
+  ]
+
+  const dna: DnaItem[] = recap.dna.map((d, i) => ({
+    trait: d.trait,
+    pct: d.pct,
+    color: DNA_COLORS[i % DNA_COLORS.length],
+  }))
+
+  return { persona, pc, city: recap.city, country: recap.country, stops, food, activities, stats, dna }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOOK: count-up animation
 // ─────────────────────────────────────────────────────────────────────────────
 
 function useCountUp(target: number, active: boolean, duration = 1400) {
@@ -134,21 +229,19 @@ function useAutoAdvance(card: number, isLast: boolean, onAdvance: () => void) {
 
 type AudioCfg = { freqs: number[]; wave: OscillatorType; vol: number }
 
-// Pentatonic-inspired ambient frequencies — tuned per card mood
 const CARD_AUDIO: AudioCfg[] = [
-  { freqs: [55, 110, 164.8],    wave: 'sine',     vol: 0.22 }, // C0: Hero — deep cosmos, awe
-  { freqs: [110, 220, 330],     wave: 'triangle', vol: 0.20 }, // C1: Persona — bold swell
-  { freqs: [440, 554, 659],     wave: 'sine',     vol: 0.16 }, // C2: Count — discovery chime
-  { freqs: [82, 110, 220],      wave: 'sine',     vol: 0.20 }, // C3: Stops — contemplative hum
-  { freqs: [110, 220, 440],     wave: 'sine',     vol: 0.18 }, // C4: Temple — sacred bells
-  { freqs: [196, 262, 330],     wave: 'sine',     vol: 0.20 }, // C5: Food — warm & round
-  { freqs: [180, 360, 540],     wave: 'sawtooth', vol: 0.10 }, // C6: Activities — electric pulse
-  { freqs: [262, 392, 523],     wave: 'triangle', vol: 0.18 }, // C7: Stats — ascending data
-  { freqs: [65, 98, 196],       wave: 'sine',     vol: 0.22 }, // C8: DNA — deep introspect
-  { freqs: [262, 392, 523],     wave: 'sine',     vol: 0.20 }, // C9: Next — triumphant resolution
+  { freqs: [55, 110, 164.8],    wave: 'sine',     vol: 0.22 },
+  { freqs: [110, 220, 330],     wave: 'triangle', vol: 0.20 },
+  { freqs: [440, 554, 659],     wave: 'sine',     vol: 0.16 },
+  { freqs: [82, 110, 220],      wave: 'sine',     vol: 0.20 },
+  { freqs: [110, 220, 440],     wave: 'sine',     vol: 0.18 },
+  { freqs: [196, 262, 330],     wave: 'sine',     vol: 0.20 },
+  { freqs: [180, 360, 540],     wave: 'sawtooth', vol: 0.10 },
+  { freqs: [262, 392, 523],     wave: 'triangle', vol: 0.18 },
+  { freqs: [65, 98, 196],       wave: 'sine',     vol: 0.22 },
+  { freqs: [262, 392, 523],     wave: 'sine',     vol: 0.20 },
 ]
 
-// Shared AudioContext ref — created on first user gesture to satisfy browser autoplay policy
 const sharedAudioCtx = { ref: null as AudioContext | null }
 
 function initAudioCtx(): AudioContext {
@@ -167,20 +260,18 @@ function useCardAudio(card: number, enabled: boolean) {
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return
     const ctx = sharedAudioCtx.ref
-    if (!ctx) return  // not yet created — will run again after initAudioCtx() is called
+    if (!ctx) return
     const cfg = CARD_AUDIO[card]
     if (!cfg) return
 
-    // Fade out previous sound
     const prev = masterRef.current
     const old  = oscRefs.current.slice()
     if (prev) {
       try { prev.gain.setValueAtTime(prev.gain.value, ctx.currentTime) } catch {}
       try { prev.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4) } catch {}
-      setTimeout(() => old.forEach(o => { try { o.stop() } catch {} }), 550)
+      setTimeout(() => old.forEach((o: OscillatorNode) => { try { o.stop() } catch {} }), 550)
     }
 
-    // Build reverb impulse response
     const convolver = ctx.createConvolver()
     const len = Math.floor(ctx.sampleRate * 2.0)
     const buf = ctx.createBuffer(2, len, ctx.sampleRate)
@@ -190,7 +281,6 @@ function useCardAudio(card: number, enabled: boolean) {
     }
     convolver.buffer = buf
 
-    // Master gain node (controls overall fade)
     const master = ctx.createGain()
     master.gain.setValueAtTime(0, ctx.currentTime)
     masterRef.current = master
@@ -200,7 +290,6 @@ function useCardAudio(card: number, enabled: boolean) {
     master.connect(dryG);      dryG.connect(ctx.destination)
     master.connect(convolver); convolver.connect(wetG); wetG.connect(ctx.destination)
 
-    // Create oscillator stack with LFO breathing
     const newOscs: OscillatorNode[] = []
     cfg.freqs.forEach((freq, idx) => {
       const osc     = ctx.createOscillator()
@@ -210,9 +299,9 @@ function useCardAudio(card: number, enabled: boolean) {
 
       osc.type            = idx === cfg.freqs.length - 1 ? cfg.wave : 'sine'
       osc.frequency.value = freq
-      osc.detune.value    = (idx - 1) * 5            // slight detuning for richness
+      osc.detune.value    = (idx - 1) * 5
       oscGain.gain.value  = cfg.vol * Math.pow(0.65, idx)
-      lfo.frequency.value = 0.12 + idx * 0.05        // slow breathing LFO
+      lfo.frequency.value = 0.12 + idx * 0.05
       lfoGain.gain.value  = oscGain.gain.value * 0.15
       lfo.connect(lfoGain); lfoGain.connect(oscGain.gain)
       osc.connect(oscGain); oscGain.connect(master)
@@ -221,21 +310,22 @@ function useCardAudio(card: number, enabled: boolean) {
     })
 
     oscRefs.current = newOscs
-    master.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.8) // fade-in
+    master.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.8)
 
     return () => {
       try { master.gain.setValueAtTime(master.gain.value, ctx.currentTime) } catch {}
       try { master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5) } catch {}
-      setTimeout(() => newOscs.forEach(o => { try { o.stop() } catch {} }), 650)
+      setTimeout(() => newOscs.forEach((o: OscillatorNode) => { try { o.stop() } catch {} }), 650)
     }
   }, [card, enabled])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES
+// CSS builder (dynamic persona color)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CSS = `
+function buildCSS(pc: PersonaConfig): string {
+  return `
 @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,700;0,6..96,900;1,6..96,400;1,6..96,700&family=Syne:wght@400;600;700;800&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -304,7 +394,7 @@ const CSS = `
   border:none;
 }
 .rc-btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
-.rc-btn-primary { background:${PC.color}; color:#000; }
+.rc-btn-primary { background:${pc.color}; color:#000; }
 .rc-btn-ghost   { background:rgba(255,255,255,.04); color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.1); }
 .rc-btn-ghost:hover { background:rgba(255,255,255,.08); color:rgba(255,255,255,.85); border-color:rgba(255,255,255,.2); }
 
@@ -344,19 +434,19 @@ const CSS = `
   position:relative; overflow:hidden;
 }
 
-/* dots navigation */
 .rc-dot {
   height:5px; border-radius:3px;
   transition: all .35s cubic-bezier(.22,1,.36,1);
   cursor:pointer;
 }
 `
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED LAYOUT CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CARD: React.CSSProperties = {
+const CARD: CSSProperties = {
   position: 'absolute', inset: 0,
   display: 'flex', flexDirection: 'column',
   alignItems: 'center', justifyContent: 'center',
@@ -364,16 +454,16 @@ const CARD: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-const CARD_LEFT: React.CSSProperties = { ...CARD, alignItems: 'flex-start' }
+const CARD_LEFT: CSSProperties = { ...CARD, alignItems: 'flex-start' }
 
-const LABEL: React.CSSProperties = {
+const LABEL: CSSProperties = {
   fontFamily: 'Syne, sans-serif',
   fontSize: '10px', fontWeight: 700,
   letterSpacing: '0.35em', textTransform: 'uppercase',
   color: 'rgba(255,255,255,0.38)',
 }
 
-const TAP: React.CSSProperties = {
+const TAP: CSSProperties = {
   position: 'absolute',
   bottom: '28px', left: '50%', transform: 'translateX(-50%)',
   fontFamily: 'Syne, sans-serif',
@@ -388,12 +478,12 @@ const TAP: React.CSSProperties = {
 
 /** 0 – HERO */
 function C0_Hero() {
+  const { city, country } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD,
       background: 'radial-gradient(ellipse 80% 65% at 50% 58%, #18083d 0%, #06020f 55%, #000 80%)',
     }}>
-      {/* Concentric rings decoration */}
       <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:.05, pointerEvents:'none' }} viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
         <circle cx="400" cy="420" r="320" fill="none" stroke="white" strokeWidth="1"/>
         <circle cx="400" cy="420" r="240" fill="none" stroke="white" strokeWidth=".6"/>
@@ -413,9 +503,8 @@ function C0_Hero() {
         fontWeight: 900, lineHeight: .85,
         letterSpacing: '-0.02em',
         textAlign: 'center',
-        // shimtext handles the color
       }}>
-        TOKYO
+        {city.toUpperCase()}
       </div>
 
       <div className="rc-s3" style={{
@@ -431,7 +520,7 @@ function C0_Hero() {
         letterSpacing: '0.5em', textTransform: 'uppercase',
         color: 'rgba(255,255,255,.45)',
       }}>
-        Japan &nbsp;·&nbsp; {YEAR}
+        {country} &nbsp;·&nbsp; {YEAR}
       </div>
 
       <div className="rc-s5" style={{
@@ -444,7 +533,6 @@ function C0_Hero() {
         Your Journey Recap
       </div>
 
-      {/* chapter count */}
       <div className="rc-s6" style={{
         marginTop: '36px',
         display: 'flex', alignItems: 'center', gap: '10px',
@@ -468,16 +556,16 @@ function C0_Hero() {
 
 /** 1 – PERSONA */
 function C1_Persona() {
+  const { pc, persona } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD_LEFT,
-      background: `radial-gradient(ellipse 100% 90% at -5% 100%, ${PC.bgDeep} 0%, rgba(0,0,0,0) 58%), #000`,
+      background: `radial-gradient(ellipse 100% 90% at -5% 100%, ${pc.bgDeep} 0%, rgba(0,0,0,0) 58%), #000`,
     }}>
-      {/* large glow blob */}
       <div className="rc-glow" style={{
         position:'absolute', bottom:'-25%', left:'-15%',
         width:'65vw', height:'65vw',
-        background:`radial-gradient(circle, ${PC.glow} 0%, transparent 65%)`,
+        background:`radial-gradient(circle, ${pc.glow} 0%, transparent 65%)`,
         pointerEvents:'none',
       }}/>
 
@@ -489,11 +577,11 @@ function C1_Persona() {
         fontFamily: '"Bodoni Moda", serif',
         fontSize: 'clamp(62px, 13vw, 136px)',
         fontWeight: 900, lineHeight: .88,
-        color: PC.color,
-        textShadow: `0 0 80px ${PC.glow}, 0 0 200px ${PC.glow}`,
+        color: pc.color,
+        textShadow: `0 0 80px ${pc.glow}, 0 0 200px ${pc.glow}`,
         letterSpacing: '-0.01em',
       }}>
-        {PC.label.split('').map((ch, i) => (
+        {pc.label.split('').map((ch, i) => (
           <span key={i} style={{ display:'inline-block', animationDelay:`${.14 + i*.04}s` }}>{ch}</span>
         ))}
       </div>
@@ -505,7 +593,7 @@ function C1_Persona() {
           color: 'rgba(255,255,255,.5)',
           letterSpacing: '.02em',
         }}>
-          {PC.tagline}
+          {pc.tagline}
         </div>
       </div>
 
@@ -513,15 +601,15 @@ function C1_Persona() {
         <div style={{
           display:'inline-flex', alignItems:'center', gap:'9px',
           padding:'6px 14px',
-          border:`1px solid ${PC.color}44`,
+          border:`1px solid ${pc.color}44`,
           borderRadius:'2px',
         }}>
-          <div style={{ width:'5px', height:'5px', background:PC.color, transform:'rotate(45deg)', borderRadius:'1px' }}/>
+          <div style={{ width:'5px', height:'5px', background:pc.color, transform:'rotate(45deg)', borderRadius:'1px' }}/>
           <span style={{
             fontFamily:'Syne', fontSize:'10px', letterSpacing:'.3em',
-            textTransform:'uppercase', color:PC.color,
+            textTransform:'uppercase', color:pc.color,
           }}>
-            {SELECTED_PERSONA} persona active
+            {persona} persona active
           </span>
         </div>
       </div>
@@ -531,14 +619,14 @@ function C1_Persona() {
   )
 }
 
-/** 2 – COUNT: 5 STOPS */
+/** 2 – COUNT */
 function C2_Count() {
+  const { stops } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD,
       background: 'linear-gradient(160deg, #000c20 0%, #001529 45%, #000812 100%)',
     }}>
-      {/* subtle dot grid */}
       <div style={{
         position:'absolute', inset:0, opacity:.04,
         backgroundImage:'radial-gradient(circle, rgba(255,255,255,.8) 1px, transparent 1px)',
@@ -558,7 +646,7 @@ function C2_Count() {
           color:'#fff',
           textShadow:'0 0 120px rgba(99,179,237,.25)',
         }}>
-          5
+          {stops.length}
         </span>
       </div>
 
@@ -579,12 +667,11 @@ function C2_Count() {
         fontSize:'14px', color:'rgba(255,255,255,.3)',
         textAlign:'center', letterSpacing:'.03em',
       }}>
-        From ancient temples to sacred mountains
+        Each one, a story worth telling
       </div>
 
-      {/* 5 glow dots */}
       <div className="rc-s5" style={{ display:'flex', gap:'12px', marginTop:'36px' }}>
-        {STOPS.map((_, i) => (
+        {stops.map((_, i) => (
           <div key={i} style={{
             width:'9px', height:'9px', borderRadius:'50%',
             background:`rgba(99,179,237,${.25 + i*.14})`,
@@ -600,6 +687,7 @@ function C2_Count() {
 
 /** 3 – STOPS LIST */
 function C3_StopsList() {
+  const { stops, pc } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD_LEFT,
@@ -610,8 +698,8 @@ function C3_StopsList() {
       </div>
 
       <div style={{ width:'100%' }}>
-        {STOPS.map((stop, i) => (
-          <div key={stop.id} className={`rc-stop-row rc-sl${i+1}`}>
+        {stops.map((stop, i) => (
+          <div key={stop.id} className={`rc-stop-row rc-sl${Math.min(i+1,5)}`}>
             <span style={{
               fontFamily:'"SF Mono","Fira Code",monospace',
               fontSize:'10px', letterSpacing:'.1em',
@@ -620,6 +708,17 @@ function C3_StopsList() {
             }}>
               {stop.id}
             </span>
+            {stop.image_url && (
+              <img
+                src={stop.image_url}
+                alt={stop.name}
+                style={{
+                  width:'40px', height:'40px',
+                  objectFit:'cover', borderRadius:'2px',
+                  flexShrink:0, opacity:.75,
+                }}
+              />
+            )}
             <div style={{ flex:1 }}>
               <div style={{
                 fontFamily:'"Bodoni Moda",serif',
@@ -640,7 +739,7 @@ function C3_StopsList() {
             </div>
             <div style={{
               width:'6px', height:'6px',
-              background:PC.color,
+              background:pc.color,
               transform:'rotate(45deg)',
               borderRadius:'1px',
               marginTop:'7px', flexShrink:0,
@@ -655,23 +754,43 @@ function C3_StopsList() {
   )
 }
 
-/** 4 – SPOTLIGHT: SENSO-JI */
+/** 4 – SPOTLIGHT: featured stop */
 function C4_Spotlight() {
-  const stop = STOPS[0]
+  const { stops } = useRecap()
+  const stop = stops[0]
+  if (!stop) return null
   return (
     <div className="rc-in" style={{
       ...CARD_LEFT,
-      background:'radial-gradient(ellipse 75% 80% at 70% 25%, #2c1500 0%, #180c00 40%, #000 72%)',
+      background: stop.image_url
+        ? 'transparent'
+        : 'radial-gradient(ellipse 75% 80% at 70% 25%, #2c1500 0%, #180c00 40%, #000 72%)',
+      position: 'relative',
     }}>
-      {/* top-right amber glow */}
-      <div className="rc-glow" style={{
-        position:'absolute', top:'-20%', right:'-10%',
-        width:'52vw', height:'52vw',
-        background:'radial-gradient(circle, rgba(212,105,42,.28) 0%, transparent 65%)',
-        pointerEvents:'none',
-      }}/>
+      {/* Place photo as cinematic background */}
+      {stop.image_url && (
+        <>
+          <div style={{
+            position:'absolute', inset:0,
+            backgroundImage:`url(${stop.image_url})`,
+            backgroundSize:'cover', backgroundPosition:'center',
+            filter:'brightness(0.25) saturate(0.8)',
+          }}/>
+          <div style={{
+            position:'absolute', inset:0,
+            background:'radial-gradient(ellipse 75% 80% at 70% 25%, rgba(44,21,0,0.7) 0%, rgba(24,12,0,0.5) 40%, rgba(0,0,0,0.85) 72%)',
+          }}/>
+        </>
+      )}
+      {!stop.image_url && (
+        <div className="rc-glow" style={{
+          position:'absolute', top:'-20%', right:'-10%',
+          width:'52vw', height:'52vw',
+          background:'radial-gradient(circle, rgba(212,105,42,.28) 0%, transparent 65%)',
+          pointerEvents:'none',
+        }}/>
+      )}
 
-      {/* giant roman numeral watermark */}
       <div style={{
         position:'absolute', bottom:'-30px', right:'-15px',
         fontFamily:'"Bodoni Moda",serif',
@@ -683,11 +802,11 @@ function C4_Spotlight() {
         Ⅰ
       </div>
 
-      <div className="rc-s1" style={{ ...LABEL, marginBottom: '14px' }}>
+      <div className="rc-s1" style={{ ...LABEL, marginBottom: '14px', position:'relative' }}>
         Your Most Iconic Stop
       </div>
 
-      <div className="rc-s2">
+      <div className="rc-s2" style={{ position:'relative' }}>
         <div style={{
           display:'inline-flex', alignItems:'center', gap:'8px',
           padding:'5px 12px',
@@ -706,7 +825,7 @@ function C4_Spotlight() {
         </div>
       </div>
 
-      <div className="rc-s3">
+      <div className="rc-s3" style={{ position:'relative' }}>
         <div style={{
           fontFamily:'"Bodoni Moda",serif',
           fontSize:'clamp(38px, 9vw, 96px)',
@@ -717,7 +836,7 @@ function C4_Spotlight() {
         </div>
       </div>
 
-      <div className="rc-s4" style={{ marginTop:'18px' }}>
+      <div className="rc-s4" style={{ marginTop:'18px', position:'relative' }}>
         <div style={{
           fontFamily:'Syne', fontSize:'10px',
           letterSpacing:'.28em', textTransform:'uppercase',
@@ -727,7 +846,7 @@ function C4_Spotlight() {
         </div>
       </div>
 
-      <div className="rc-s5" style={{ marginTop:'20px', maxWidth:'360px' }}>
+      <div className="rc-s5" style={{ marginTop:'20px', maxWidth:'360px', position:'relative' }}>
         <div style={{
           width:'40px', height:'1px',
           background:'rgba(212,105,42,.35)',
@@ -749,6 +868,7 @@ function C4_Spotlight() {
 
 /** 5 – FOOD */
 function C5_Food() {
+  const { food, city } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD_LEFT,
@@ -771,7 +891,7 @@ function C5_Food() {
           fontSize:'clamp(32px, 7.5vw, 78px)',
           fontWeight:900, lineHeight:.9, color:'#fff',
         }}>
-          Tokyo Fed<br/>Your Soul
+          {city} Fed<br/>Your Soul
         </div>
       </div>
 
@@ -780,13 +900,13 @@ function C5_Food() {
           fontFamily:'"Bodoni Moda",serif', fontStyle:'italic',
           fontSize:'14px', color:'rgba(255,255,255,.35)',
         }}>
-          3 culinary moments worth returning for
+          {food.length} culinary moment{food.length !== 1 ? 's' : ''} worth returning for
         </p>
       </div>
 
       <div style={{ marginTop:'32px', width:'100%', display:'flex', flexDirection:'column', gap:'12px' }}>
-        {FOOD.map((f, i) => (
-          <div key={f.name} className={`rc-food-card rc-sl${i+1}`}>
+        {food.map((f, i) => (
+          <div key={f.name} className={`rc-food-card rc-sl${Math.min(i+1,5)}`}>
             <span style={{
               fontFamily:'"SF Mono",monospace', fontSize:'10px',
               color:'#C45C72', opacity:.7, letterSpacing:'.08em', flexShrink:0,
@@ -825,7 +945,9 @@ function C5_Food() {
 
 /** 6 – ACTIVITIES */
 function C6_Activities() {
-  const top = ACTIVITIES[0]
+  const { activities } = useRecap()
+  const top = activities[0]
+  if (!top) return null
   return (
     <div className="rc-in" style={{
       ...CARD_LEFT,
@@ -881,7 +1003,7 @@ function C6_Activities() {
       </div>
 
       <div style={{ marginTop:'28px', width:'100%', display:'flex', flexDirection:'column', gap:'10px' }}>
-        {ACTIVITIES.slice(1).map((a, i) => (
+        {activities.slice(1).map((a, i) => (
           <div key={a.name} className={`rc-act-item rc-sl${i+3}`}>
             <div style={{ width:'4px', height:'4px', background:'rgba(155,100,232,.55)', transform:'rotate(45deg)', flexShrink:0 }}/>
             <div style={{ flex:1, fontFamily:'"Bodoni Moda",serif', fontSize:'clamp(15px,3vw,18px)', fontWeight:700, color:'rgba(255,255,255,.75)' }}>
@@ -901,10 +1023,11 @@ function C6_Activities() {
 
 /** 7 – STATS (count-up) */
 function C7_Stats({ active }: { active: boolean }) {
-  const v0 = useCountUp(STATS[0].value, active)
-  const v1 = useCountUp(STATS[1].value, active)
-  const v2 = useCountUp(STATS[2].value, active)
-  const v3 = useCountUp(STATS[3].value, active)
+  const { stats } = useRecap()
+  const v0 = useCountUp(stats[0]?.value ?? 0, active)
+  const v1 = useCountUp(stats[1]?.value ?? 0, active)
+  const v2 = useCountUp(stats[2]?.value ?? 0, active)
+  const v3 = useCountUp(stats[3]?.value ?? 0, active)
   const vals = [v0, v1, v2, v3]
 
   return (
@@ -921,7 +1044,7 @@ function C7_Stats({ active }: { active: boolean }) {
         display:'grid', gridTemplateColumns:'1fr 1fr',
         gap:'14px',
       }}>
-        {STATS.map((s, i) => (
+        {stats.map((s, i) => (
           <div key={s.label} className={`rc-stat-cell rc-s${i+2}`}>
             <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px', background:`linear-gradient(90deg,${s.color},transparent)` }}/>
             <div style={{
@@ -952,6 +1075,7 @@ function C7_Stats({ active }: { active: boolean }) {
 
 /** 8 – TRAVEL DNA */
 function C8_DNA() {
+  const { dna } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD_LEFT,
@@ -981,8 +1105,8 @@ function C8_DNA() {
       </div>
 
       <div style={{ marginTop:'36px', width:'100%', display:'flex', flexDirection:'column', gap:'22px' }}>
-        {DNA.map((d, i) => (
-          <div key={d.trait} className={`rc-sl${i+1}`}>
+        {dna.map((d, i) => (
+          <div key={d.trait} className={`rc-sl${Math.min(i+1,5)}`}>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'8px' }}>
               <span style={{
                 fontFamily:'Syne', fontSize:'11px', fontWeight:700,
@@ -1004,7 +1128,7 @@ function C8_DNA() {
               borderRadius:'2px', overflow:'hidden',
             }}>
               <div
-                className={`rc-bar rc-b${i+1}`}
+                className={`rc-bar rc-b${Math.min(i+1,4)}`}
                 style={{
                   height:'100%', width:`${d.pct}%`,
                   background:`linear-gradient(90deg, ${d.color}, ${d.color}66)`,
@@ -1023,10 +1147,11 @@ function C8_DNA() {
 
 /** 9 – WHAT'S NEXT */
 function C9_Next() {
+  const { pc, city } = useRecap()
   return (
     <div className="rc-in" style={{
       ...CARD,
-      background:`radial-gradient(ellipse 65% 55% at 50% 45%, ${PC.glowDim} 0%, #000 60%)`,
+      background:`radial-gradient(ellipse 65% 55% at 50% 45%, ${pc.glowDim} 0%, #000 60%)`,
     }}>
       <div className="rc-s1" style={{ ...LABEL, marginBottom:'18px' }}>
         Ready to make it real?
@@ -1040,7 +1165,7 @@ function C9_Next() {
           color:'#fff', textAlign:'center',
         }}>
           Time to Book<br/>
-          <span style={{ color:PC.color }}>Tokyo</span>
+          <span style={{ color:pc.color }}>{city}</span>
         </div>
       </div>
 
@@ -1053,7 +1178,6 @@ function C9_Next() {
         </p>
       </div>
 
-      {/* CTA Buttons */}
       <div className="rc-s4" style={{
         marginTop:'40px', width:'100%', display:'flex', flexDirection:'column',
         gap:'10px', maxWidth:'360px',
@@ -1061,32 +1185,23 @@ function C9_Next() {
         <button
           className="rc-btn rc-btn-primary"
           onClick={e => e.stopPropagation()}
-          style={{ background:PC.color, color:'#000' }}
+          style={{ background:pc.color, color:'#000' }}
         >
           <span>Export as PDF</span>
           <span style={{ opacity:.7, fontSize:'14px' }}>↓</span>
         </button>
 
-        <button
-          className="rc-btn rc-btn-ghost"
-          onClick={e => e.stopPropagation()}
-        >
-          <span>Browse Hotels in Tokyo</span>
+        <button className="rc-btn rc-btn-ghost" onClick={e => e.stopPropagation()}>
+          <span>Browse Hotels in {city}</span>
           <span style={{ opacity:.5 }}>⌂</span>
         </button>
 
-        <button
-          className="rc-btn rc-btn-ghost"
-          onClick={e => e.stopPropagation()}
-        >
-          <span>Find Flights to Tokyo</span>
+        <button className="rc-btn rc-btn-ghost" onClick={e => e.stopPropagation()}>
+          <span>Find Flights to {city}</span>
           <span style={{ opacity:.5 }}>→</span>
         </button>
 
-        <button
-          className="rc-btn rc-btn-ghost"
-          onClick={e => e.stopPropagation()}
-        >
+        <button className="rc-btn rc-btn-ghost" onClick={e => e.stopPropagation()}>
           <span>Share Your Journey</span>
           <span style={{ opacity:.5 }}>⤴</span>
         </button>
@@ -1117,7 +1232,46 @@ export default function RecapPage() {
   const [card, setCard] = useState(0)
   const [fading, setFading] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(false)
+  const [recapCtx, setRecapCtx] = useState<RecapContextValue | null>(null)
+  const [loadingRecap, setLoadingRecap] = useState(true)
+  const [recapError, setRecapError] = useState<string | null>(null)
   const busy = useRef(false)
+
+  // Load transcript from localStorage and fetch session recap data
+  useEffect(() => {
+    async function loadRecap() {
+      const transcript = loadPersistedTranscript()
+      if (!transcript || (!transcript.turns.length && !transcript.location_events.length)) {
+        setLoadingRecap(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/ayana/recap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            persona: transcript.persona ?? 'adventure',
+            turns: transcript.turns,
+            location_events: transcript.location_events,
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json() as { recap: BackendRecap }
+          setRecapCtx(mapBackendToContext(data.recap))
+        } else {
+          setRecapError('Could not generate recap. Try again.')
+        }
+      } catch {
+        setRecapError('Could not reach the server.')
+      } finally {
+        setLoadingRecap(false)
+      }
+    }
+
+    void loadRecap()
+  }, [])
 
   const goTo = useCallback((target: number) => {
     if (busy.current || target < 0 || target >= TOTAL_CARDS) return
@@ -1159,8 +1313,8 @@ export default function RecapPage() {
 
   // Touch swipe
   const touchX = useRef<number | null>(null)
-  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0].clientX }
-  const onTouchEnd   = (e: React.TouchEvent) => {
+  const onTouchStart = (e: { touches: TouchList }) => { touchX.current = e.touches[0].clientX }
+  const onTouchEnd   = (e: { changedTouches: TouchList }) => {
     if (touchX.current === null) return
     const dx = e.changedTouches[0].clientX - touchX.current
     initAudioCtx(); setAudioEnabled(true)
@@ -1171,22 +1325,61 @@ export default function RecapPage() {
 
   const isLast = card === TOTAL_CARDS - 1
 
-  // 5-second auto-advance (Spotify Wrapped style)
-  const timerProgress = useAutoAdvance(card, isLast, advance)
+  const timerProgress = useAutoAdvance(card, isLast || loadingRecap || !recapCtx, advance)
+  useCardAudio(card, audioEnabled && !!recapCtx)
 
-  // Ambient audio per card
-  useCardAudio(card, audioEnabled)
-
-  // Enable audio + advance on interaction
-  // IMPORTANT: initAudioCtx() must run synchronously inside the click/touch handler
-  // so the browser counts it as a user gesture — this is required for Web Audio API
   const handleInteract = useCallback(() => {
     if (!audioEnabled) {
-      initAudioCtx()   // create/resume AudioContext within user gesture ← critical
+      initAudioCtx()
       setAudioEnabled(true)
     }
     if (!isLast) advance()
   }, [audioEnabled, isLast, advance])
+
+  // No session data — gate screen
+  if (!loadingRecap && !recapCtx) {
+    return (
+      <>
+        <style dangerouslySetInnerHTML={{ __html: buildCSS(PERSONA_CFG.adventure) }} />
+        <div style={{
+          position: 'fixed', inset: 0, background: '#000',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: '24px', fontFamily: 'Syne, sans-serif',
+        }}>
+          <div style={{ fontSize: '9px', letterSpacing: '.35em', textTransform: 'uppercase', color: 'rgba(255,255,255,.22)' }}>
+            A · Y · A · N · A
+          </div>
+          <div style={{
+            fontFamily: '"Bodoni Moda", serif',
+            fontSize: 'clamp(28px, 6vw, 52px)',
+            fontWeight: 900, color: '#fff', textAlign: 'center', lineHeight: 1.1,
+          }}>
+            No Journey Yet
+          </div>
+          <p style={{
+            fontFamily: '"Bodoni Moda", serif', fontStyle: 'italic',
+            fontSize: '15px', color: 'rgba(255,255,255,.35)',
+            textAlign: 'center', maxWidth: '320px', lineHeight: 1.6,
+          }}>
+            {recapError ?? 'Complete a session with Ayana first — then your recap will be waiting here.'}
+          </p>
+          <Link href="/" style={{
+            marginTop: '12px',
+            fontFamily: 'Syne', fontSize: '10px',
+            letterSpacing: '.3em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,.45)', textDecoration: 'none',
+            border: '1px solid rgba(255,255,255,.12)',
+            padding: '10px 20px', borderRadius: '3px',
+          }}>
+            Start a Journey
+          </Link>
+        </div>
+      </>
+    )
+  }
+
+  const pc = recapCtx?.pc ?? PERSONA_CFG.adventure
 
   const CARDS = [
     <C0_Hero         key="c0" />,
@@ -1201,11 +1394,53 @@ export default function RecapPage() {
     <C9_Next         key="c9" />,
   ]
 
-  return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+  // Past the gate: recapCtx is guaranteed non-null here
+  const safeCtx = recapCtx as RecapContextValue
 
-      <div
+  return (
+    <RecapCtx.Provider value={safeCtx}>
+      <style dangerouslySetInnerHTML={{ __html: buildCSS(pc) }} />
+
+      {/* Loading overlay — shown while Grok processes the transcript */}
+      {loadingRecap && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:999,
+          background:'#000',
+          display:'flex', flexDirection:'column',
+          alignItems:'center', justifyContent:'center',
+          gap:'20px',
+        }}>
+          <div style={{
+            fontFamily:'Syne, sans-serif',
+            fontSize:'9px', letterSpacing:'.35em', textTransform:'uppercase',
+            color:'rgba(255,255,255,.22)',
+          }}>
+            A &nbsp;·&nbsp; Y &nbsp;·&nbsp; A &nbsp;·&nbsp; N &nbsp;·&nbsp; A
+          </div>
+          <div style={{
+            fontFamily:'"Bodoni Moda", serif', fontStyle:'italic',
+            fontSize:'18px', color:'rgba(255,255,255,.45)',
+            letterSpacing:'.04em',
+          }}>
+            Crafting your recap…
+          </div>
+          <div style={{
+            width:'120px', height:'1px',
+            background:'rgba(255,255,255,.08)',
+            overflow:'hidden', borderRadius:'1px',
+          }}>
+            <div style={{
+              height:'100%', width:'40%',
+              background:`rgba(255,255,255,.35)`,
+              animation:'rcShim 1.8s linear infinite',
+              backgroundSize:'250% auto',
+            }}/>
+          </div>
+        </div>
+      )}
+
+      {/* Carousel — only rendered once real recap data is available */}
+      {!loadingRecap && recapCtx && <div
         style={{
           position:'fixed', inset:0,
           background:'#000',
@@ -1218,7 +1453,7 @@ export default function RecapPage() {
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        {/* ── Stories-style segmented progress (Spotify Wrapped) ───── */}
+        {/* ── Stories-style segmented progress ───── */}
         <div style={{
           position:'absolute', top:0, left:0, right:0,
           height:'2px',
@@ -1236,17 +1471,15 @@ export default function RecapPage() {
                 width: i < card  ? '100%'
                      : i === card ? (isLast ? '100%' : `${timerProgress * 100}%`)
                      : '0%',
-                background: i <= card ? PC.color : 'transparent',
-                boxShadow: i === card && !isLast ? `0 0 5px ${PC.glow}` : 'none',
+                background: i <= card ? pc.color : 'transparent',
+                boxShadow: i === card && !isLast ? `0 0 5px ${pc.glow}` : 'none',
               }}/>
             </div>
           ))}
         </div>
 
         {/* ── AYANA wordmark ────────────────────────────────────────── */}
-        <div style={{
-          position:'absolute', top:'18px', left:'20px', zIndex:200,
-        }}>
+        <div style={{ position:'absolute', top:'18px', left:'20px', zIndex:200 }}>
           <Link href="/" onClick={e => e.stopPropagation()} style={{
             fontFamily:'Syne', fontSize:'9px',
             letterSpacing:'.35em', textTransform:'uppercase',
@@ -1261,25 +1494,24 @@ export default function RecapPage() {
           position:'absolute', top:'14px', right:'16px', zIndex:200,
           display:'flex', alignItems:'center', gap:'10px',
         }}>
-          {/* Audio on/off badge */}
           <div
             onClick={e => { e.stopPropagation(); setAudioEnabled(v => !v) }}
             title={audioEnabled ? 'Mute ambient sound' : 'Enable ambient sound'}
             style={{
               display:'flex', alignItems:'center', gap:'4px',
               padding:'3px 8px',
-              border:`1px solid ${audioEnabled ? PC.color + '44' : 'rgba(255,255,255,.1)'}`,
+              border:`1px solid ${audioEnabled ? pc.color + '44' : 'rgba(255,255,255,.1)'}`,
               borderRadius:'20px',
               cursor:'pointer',
               transition:'all .25s ease',
-              background: audioEnabled ? PC.color + '12' : 'transparent',
+              background: audioEnabled ? pc.color + '12' : 'transparent',
             }}
           >
             <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
               {audioEnabled ? (
                 <>
-                  <path d="M1 3.5h2l3-2.5v9l-3-2.5H1z" fill={PC.color} opacity="0.9"/>
-                  <path d="M7.5 2.5c1 .8 1.5 1.9 1.5 3s-.5 2.2-1.5 3" stroke={PC.color} strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.7"/>
+                  <path d="M1 3.5h2l3-2.5v9l-3-2.5H1z" fill={pc.color} opacity="0.9"/>
+                  <path d="M7.5 2.5c1 .8 1.5 1.9 1.5 3s-.5 2.2-1.5 3" stroke={pc.color} strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.7"/>
                 </>
               ) : (
                 <>
@@ -1292,13 +1524,12 @@ export default function RecapPage() {
             <span style={{
               fontFamily:'Syne', fontSize:'8px', letterSpacing:'.2em',
               textTransform:'uppercase',
-              color: audioEnabled ? PC.color : 'rgba(255,255,255,.25)',
+              color: audioEnabled ? pc.color : 'rgba(255,255,255,.25)',
             }}>
               {audioEnabled ? 'on' : 'off'}
             </span>
           </div>
 
-          {/* Card counter */}
           <div style={{
             fontFamily:'"SF Mono","Fira Code",monospace',
             fontSize:'10px', letterSpacing:'.1em',
@@ -1335,15 +1566,15 @@ export default function RecapPage() {
               onClick={e => { e.stopPropagation(); initAudioCtx(); setAudioEnabled(true); goTo(i) }}
               style={{
                 width: i === card ? '20px' : '5px',
-                background: i === card ? PC.color : 'rgba(255,255,255,.2)',
-                boxShadow: i === card ? `0 0 7px ${PC.glow}` : 'none',
+                background: i === card ? pc.color : 'rgba(255,255,255,.2)',
+                boxShadow: i === card ? `0 0 7px ${pc.glow}` : 'none',
               }}
             />
           ))}
         </div>
 
         {/* ── Countdown hint ─────────────────────────────────────────── */}
-        {!isLast && (
+        {!isLast && !loadingRecap && (
           <div style={{
             position:'absolute', bottom:'36px', left:'50%',
             transform:'translateX(-50%)',
@@ -1369,7 +1600,7 @@ export default function RecapPage() {
             ← → arrow keys
           </div>
         )}
-      </div>
-    </>
+      </div>}
+    </RecapCtx.Provider>
   )
 }

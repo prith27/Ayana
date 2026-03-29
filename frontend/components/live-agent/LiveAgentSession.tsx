@@ -32,7 +32,12 @@ import {
   type ShowNearbyActionPayload,
   type ToolResult,
 } from '@/lib/live-agent/protocol'
-import type { PlaceCategory } from '@/lib/places/nearbySearch'
+import {
+  addAITurn,
+  addUserTurn,
+  recordCityEvent,
+  recordLandmarkEvent,
+} from '@/lib/ayana/transcript'
 
 interface ChooseItineraryActionResult {
   itineraryId: string
@@ -152,6 +157,9 @@ export function LiveAgentSession({
   const processingFrontendActionRef = useRef(false)
   const latestToolResultRef = useRef<ToolResult | null>(null)
   const prepFingerprintRef = useRef<string | null>(null)
+  // Transcript accumulation buffers (partial chunks → flush on finished)
+  const aiTurnBufferRef = useRef<string>('')
+  const userTurnBufferRef = useRef<string>('')
 
   useEffect(() => {
     chooseItineraryActionRef.current = onChooseItineraryAction
@@ -314,6 +322,19 @@ export function LiveAgentSession({
 
     if (liveEvent.outputTranscription?.text) {
       setAgentSpeaking()
+      aiTurnBufferRef.current += liveEvent.outputTranscription.text
+      if (liveEvent.outputTranscription.finished) {
+        addAITurn(aiTurnBufferRef.current)
+        aiTurnBufferRef.current = ''
+      }
+    }
+
+    if (liveEvent.inputTranscription?.text) {
+      userTurnBufferRef.current += liveEvent.inputTranscription.text
+      if (liveEvent.inputTranscription.finished) {
+        addUserTurn(userTurnBufferRef.current)
+        userTurnBufferRef.current = ''
+      }
     }
 
     const parts = liveEvent.content?.parts ?? []
@@ -376,6 +397,7 @@ export function LiveAgentSession({
           overlayPreset: payload.overlay_preset,
           tagline: payload.tagline,
         })
+        recordCityEvent(result.cityName, result.countryName)
         await sendImageBeforeAck(action.job_id, result.cityName)
         await sendFrontendAck({
           status: 'applied',
@@ -423,6 +445,7 @@ export function LiveAgentSession({
           overlayPreset: payload.overlay_preset,
           tagline: payload.tagline,
         })
+        recordLandmarkEvent(result.landmarkName, result.cityName, result.countryName)
         await sendImageBeforeAck(action.job_id, result.landmarkName)
         await sendFrontendAck({
           status: 'applied',

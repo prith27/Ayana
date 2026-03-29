@@ -37,6 +37,7 @@ from ayana_orchestration import (  # noqa: E402
     unregister_result_queue,
 )
 from ayana_prep.router import router as ayana_prep_router  # noqa: E402
+from ayana_recap.router import router as ayana_recap_router  # noqa: E402
 from ayana_tool_handlers import build_post_ack_followup  # noqa: E402
 from google_search_agent.agent import agent  # noqa: E402
 
@@ -60,6 +61,7 @@ USE_VERTEX_AI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").strip().upper() == "T
 
 app = FastAPI()
 app.include_router(ayana_prep_router)
+app.include_router(ayana_recap_router)
 
 # Mount static files
 static_dir = Path(__file__).parent / "static"
