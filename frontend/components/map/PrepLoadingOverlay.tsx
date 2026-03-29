@@ -85,6 +85,19 @@ const CSS = `
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0);   }
 }
+@keyframes ayanaLetterIn {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.92); filter: blur(6px); }
+  60%  { opacity: 1; transform: translateY(-2px) scale(1.01); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
+}
+@keyframes ayanaLineExpand {
+  from { width: 0; opacity: 0; }
+  to   { width: 48px; opacity: 1; }
+}
+@keyframes ayanaSubIn {
+  from { opacity: 0; letter-spacing: 0.52em; }
+  to   { opacity: 0.38; letter-spacing: 0.44em; }
+}
 @keyframes cinematicFadeUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0);    }
@@ -496,44 +509,53 @@ export function PrepLoadingOverlay({
             gap: 20,
             zIndex: 1,
           }}>
-            <h1 style={{
-              margin: 0,
-              fontSize: 'clamp(56px, 9vw, 104px)',
-              fontWeight: 100,
-              letterSpacing: '0.48em',
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.95)',
-              textShadow: `0 0 60px ${accent}55, 0 4px 32px rgba(0,0,0,0.7)`,
-              animation: 'ayanaBloomIn 1.4s cubic-bezier(0.22,1,0.36,1) both',
-            }}>
-              Ayana
-            </h1>
+            {/* Letter-by-letter staggered reveal */}
             <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 14px',
-              borderRadius: 999,
-              border: `1px solid ${accent}28`,
-              background: `${accent}0c`,
-              animation: 'ayanaPersonaIn 0.6s cubic-bezier(0.22,1,0.36,1) 0.8s both',
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 'clamp(4px, 1.2vw, 18px)',
             }}>
-              <div style={{
-                width: 5, height: 5, borderRadius: '50%',
-                background: accent,
-                boxShadow: `0 0 6px ${accent}`,
-              }} />
-              <span style={{
-                fontFamily: '"SF Mono","Fira Code",monospace',
-                fontSize: '9px',
-                letterSpacing: '0.38em',
-                textTransform: 'uppercase',
-                color: accent,
-                opacity: 0.82,
-              }}>
-                {label}
-              </span>
+              {['A','Y','A','N','A'].map((letter, i) => (
+                <span
+                  key={i}
+                  style={{
+                    display: 'inline-block',
+                    fontSize: 'clamp(64px, 10vw, 120px)',
+                    fontWeight: 100,
+                    letterSpacing: '0.04em',
+                    color: 'rgba(255,255,255,0.95)',
+                    textShadow: `0 0 60px ${accent}50, 0 0 120px ${accent}20, 0 2px 24px rgba(0,0,0,0.6)`,
+                    opacity: 0,
+                    animation: `ayanaLetterIn 0.9s cubic-bezier(0.22,1,0.36,1) ${0.05 + i * 0.1}s forwards`,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {letter}
+                </span>
+              ))}
             </div>
+
+            {/* Thin accent rule beneath */}
+            <div style={{
+              height: '1px',
+              background: `linear-gradient(90deg, transparent, ${accent}88, transparent)`,
+              opacity: 0,
+              animation: 'ayanaLineExpand 0.8s cubic-bezier(0.22,1,0.36,1) 0.65s forwards',
+            }} />
+
+            {/* AI · Journey Engine tagline */}
+            <p style={{
+              margin: 0,
+              fontFamily: '"SF Mono","Fira Code",monospace',
+              fontSize: '9px',
+              letterSpacing: '0.44em',
+              textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.55)',
+              opacity: 0,
+              animation: 'ayanaSubIn 0.9s cubic-bezier(0.22,1,0.36,1) 0.75s forwards',
+            }}>
+              AI · Journey Engine
+            </p>
           </div>
         )}
 

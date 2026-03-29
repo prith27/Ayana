@@ -533,8 +533,8 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Control notch — top-center, from city-selection onwards */}
-      {(stage === 'selectingGeneratedItinerary' || stage === 'runtimePrimed') && (
+      {/* Control notch — top-center, city view only */}
+      {stage === 'runtimePrimed' && (
         <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
           <ControlNotch gestureState={gestureState} />
         </div>

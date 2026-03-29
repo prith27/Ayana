@@ -190,9 +190,9 @@ export function GeneratedItineraryOverlay({
             flexWrap: 'wrap',
             justifyContent: 'center',
             alignItems: 'stretch',
-            gap: '18px',
+            gap: '14px',
             width: '100%',
-            maxWidth: '1080px',
+            maxWidth: '960px',
             position: 'relative',
             zIndex: 1,
             alignContent: 'center',
@@ -214,9 +214,9 @@ export function GeneratedItineraryOverlay({
                 aria-label={`Select ${itinerary.city_name}`}
                 style={{
                   position: 'relative',
-                  flex: '1 1 290px',
-                  maxWidth: '332px',
-                  minHeight: '474px',
+                  flex: '1 1 260px',
+                  maxWidth: '300px',
+                  minHeight: '280px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
@@ -351,134 +351,19 @@ export function GeneratedItineraryOverlay({
                   </h3>
                 </div>
 
-                <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{ position: 'relative', zIndex: 1, marginTop: 'auto' }}>
                   <p
                     style={{
                       margin: 0,
-                      fontSize: '15px',
+                      fontSize: '11px',
                       fontWeight: 300,
-                      letterSpacing: '0.06em',
-                      color: isHovered || isSelected ? accent : 'rgba(255,255,255,0.76)',
+                      letterSpacing: '0.14em',
+                      color: isHovered || isSelected ? accent : 'rgba(255,255,255,0.42)',
                       textTransform: 'uppercase',
                     }}
                   >
                     {itinerary.title}
                   </p>
-                  <p
-                    style={{
-                      margin: '10px 0 0',
-                      fontSize: '13px',
-                      lineHeight: 1.72,
-                      color: 'rgba(255,255,255,0.48)',
-                    }}
-                  >
-                    {itinerary.pitch}
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    width: '28px',
-                    height: '1px',
-                    background: isHovered || isSelected ? accent : borderAlpha,
-                    position: 'relative',
-                    zIndex: 1,
-                  }}
-                />
-
-                <div
-                  style={{
-                    position: 'relative',
-                    zIndex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    width: '100%',
-                  }}
-                >
-                  {itinerary.city_facts.slice(0, 2).map((fact) => (
-                    <div
-                      key={fact}
-                      style={{
-                        display: 'flex',
-                        gap: '8px',
-                        alignItems: 'flex-start',
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: '4px',
-                          height: '4px',
-                          marginTop: '7px',
-                          background: accent,
-                          opacity: 0.72,
-                          transform: 'rotate(45deg)',
-                          flexShrink: 0,
-                        }}
-                      />
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: '12px',
-                          lineHeight: 1.65,
-                          color: 'rgba(255,255,255,0.44)',
-                        }}
-                      >
-                        {fact}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                <div
-                  style={{
-                    position: 'relative',
-                    zIndex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                    width: '100%',
-                    marginTop: 'auto',
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: 0,
-                      fontFamily: '"SF Mono", "Fira Code", monospace',
-                      fontSize: '9px',
-                      letterSpacing: '0.22em',
-                      textTransform: 'uppercase',
-                      color: 'rgba(255,255,255,0.24)',
-                    }}
-                  >
-                    Landmark Preview
-                  </p>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '8px',
-                    }}
-                  >
-                    {itinerary.landmarks.slice(0, 3).map((landmark) => (
-                      <span
-                        key={landmark.id}
-                        style={{
-                          padding: '7px 10px',
-                          borderRadius: '999px',
-                          border: `1px solid ${isHovered || isSelected ? borderAlpha : 'rgba(255,255,255,0.08)'}`,
-                          background: 'rgba(255,255,255,0.02)',
-                          fontSize: '10px',
-                          lineHeight: 1.2,
-                          letterSpacing: '0.06em',
-                          color: 'rgba(255,255,255,0.56)',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {landmark.short_label ?? landmark.name}
-                      </span>
-                    ))}
-                  </div>
                 </div>
               </button>
             )

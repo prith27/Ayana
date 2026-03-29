@@ -370,21 +370,21 @@ export function ItinerarySelection({ onSelect }: Props) {
 
         {/* ── Header ── */}
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-          {/* AYANA wordmark */}
+          {/* Main heading — no brand name, Ayana is revealed in the loading cinematic */}
           <h1 style={{
             margin: '0 0 14px',
-            fontSize: 'clamp(32px, 4.5vw, 58px)',
+            fontSize: 'clamp(22px, 3vw, 38px)',
             fontWeight: 100,
-            letterSpacing: '0.24em',
+            letterSpacing: '0.38em',
             textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.92)',
+            color: 'rgba(255,255,255,0.88)',
             textShadow: titleShadow,
             transition: 'text-shadow 0.6s ease',
             animation: visible
               ? 'itinTitleIn 1.0s cubic-bezier(0.22,1,0.36,1) 0.05s both'
               : 'none',
           }}>
-            Ayana
+            Choose your experience
           </h1>
 
           {/* Subtitle */}
@@ -394,12 +394,12 @@ export function ItinerarySelection({ onSelect }: Props) {
             fontSize: '10px',
             letterSpacing: '0.42em',
             textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.58)',
+            color: 'rgba(255,255,255,0.36)',
             animation: visible
               ? 'itinSubIn 0.5s cubic-bezier(0.22,1,0.36,1) 0.38s both'
               : 'none',
           }}>
-            Choose your experience
+            Your persona shapes the journeys ahead
           </p>
 
           {/* Flanked rule — shimmer sweep */}
