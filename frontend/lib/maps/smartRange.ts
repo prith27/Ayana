@@ -57,19 +57,42 @@ interface Viewport {
 export interface ArrivalCamera {
   range: number
   tilt: number
+  altitude: number
+}
+
+// Altitude estimate by type — used as sync fallback when ElevationService unavailable
+function altitudeEstimateFromTypes(types: string[]): number {
+  for (const t of types) {
+    if (['mountain', 'peak', 'natural_feature'].includes(t)) return 1_500
+  }
+  return 0
+}
+
+// Adjust range to account for elevation so the camera maintains correct visual distance
+function altitudeAdjustedRange(baseRange: number, altitude: number): number {
+  if (altitude < 100) return baseRange
+  return Math.round(Math.sqrt(baseRange ** 2 + altitude ** 2) * 1.1)
 }
 
 /**
  * Pure sync calculation. Priority: keyword name → viewport → type presets → default.
+ * Accepts optional elevation (metres) to adjust range and tilt for elevated terrain.
  */
 export function calcArrivalRange(
   viewport?: Viewport,
   types?: string[],
   name?: string,
+  elevation?: number,
 ): ArrivalCamera {
+  const altitude = elevation ?? altitudeEstimateFromTypes(types ?? [])
+
   if (name) {
     const classified = classifyByName(name)
-    if (classified) return classified
+    if (classified) {
+      const range = altitudeAdjustedRange(classified.range, altitude)
+      const tilt = altitude > 500 && classified.tilt >= 50 ? 45 : classified.tilt
+      return { range, tilt, altitude }
+    }
   }
   if (viewport) {
     const ne = viewport.getNorthEast()
@@ -78,52 +101,99 @@ export function calcArrivalRange(
       { lat: ne.lat(), lng: ne.lng() },
       { lat: sw.lat(), lng: sw.lng() }
     )
-    return { range: clamp(diag * 2, 300, 50_000), tilt: DEFAULT_TILT }
+    const baseRange = clamp(diag * 2, 300, 50_000)
+    return { range: altitudeAdjustedRange(baseRange, altitude), tilt: DEFAULT_TILT, altitude }
   }
-  return { range: rangeFromTypes(types ?? []), tilt: DEFAULT_TILT }
+  const baseRange = rangeFromTypes(types ?? [])
+  return { range: altitudeAdjustedRange(baseRange, altitude), tilt: DEFAULT_TILT, altitude }
 }
 
 /**
- * Async — reverse geocodes lat/lng to get viewport + types, then calls calcArrivalRange.
- * Accepts optional name for keyword classification and overrides for per-stop control.
- * Returns DEFAULT_RANGE/TILT on any failure.
+ * Fetch terrain elevation for a lat/lng via google.maps.ElevationService.
+ * Resolves to 0 on any failure or timeout (safe fallback for flat terrain).
  */
-export function resolveArrivalRange(
+function fetchElevation(lat: number, lng: number): Promise<number> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(0), 1_500)
+    if (typeof window === 'undefined' || !window.google?.maps?.ElevationService) {
+      clearTimeout(timeout)
+      resolve(0)
+      return
+    }
+    try {
+      const elevator = new google.maps.ElevationService()
+      elevator.getElevationForLocations(
+        { locations: [{ lat, lng }] },
+        (results: google.maps.ElevationResult[] | null, status: google.maps.ElevationStatus) => {
+          clearTimeout(timeout)
+          if (status === 'OK' && results?.[0]) {
+            resolve(Math.max(0, results[0].elevation))
+          } else {
+            resolve(0)
+          }
+        }
+      )
+    } catch {
+      clearTimeout(timeout)
+      resolve(0)
+    }
+  })
+}
+
+/**
+ * Async — fetches terrain elevation + reverse geocodes lat/lng, then calls calcArrivalRange.
+ * Accepts optional name for keyword classification and overrides for per-stop control.
+ * Returns DEFAULT_RANGE/TILT/altitude:0 on any failure.
+ */
+export async function resolveArrivalRange(
   lat: number,
   lng: number,
   name?: string,
   overrides?: { range?: number; tilt?: number },
 ): Promise<ArrivalCamera> {
-  // Explicit per-stop override — highest priority, skip all logic
+  // Always fetch elevation — never skip, even when range/tilt are overridden.
+  // Elevation determines whether the camera targets the right 3D point.
+  const elevationPromise = fetchElevation(lat, lng)
+
+  // Explicit range+tilt override — use them, but still apply real elevation
   if (overrides?.range !== undefined && overrides?.tilt !== undefined) {
-    return Promise.resolve({ range: overrides.range, tilt: overrides.tilt })
+    const altitude = await elevationPromise
+    const range = altitudeAdjustedRange(overrides.range, altitude)
+    const tilt = altitude > 500 && overrides.tilt >= 50 ? 45 : overrides.tilt
+    return { range, tilt, altitude }
   }
 
-  // Keyword classifier is sync — if matched, skip the geocoder network call
+  // Keyword classifier — still needs elevation before returning
   if (name) {
     const classified = classifyByName(name)
-    if (classified) return Promise.resolve(classified)
+    if (classified) {
+      const altitude = await elevationPromise
+      const range = altitudeAdjustedRange(classified.range, altitude)
+      const tilt = altitude > 500 && classified.tilt >= 50 ? 45 : classified.tilt
+      return { range, tilt, altitude }
+    }
+  }
+
+  if (typeof window === 'undefined' || !window.google?.maps) {
+    return { range: DEFAULT_RANGE, tilt: DEFAULT_TILT, altitude: 0 }
   }
 
   return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !window.google?.maps) {
-      resolve({ range: DEFAULT_RANGE, tilt: DEFAULT_TILT })
-      return
-    }
     try {
       const geocoder = new google.maps.Geocoder()
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      geocoder.geocode({ location: { lat, lng } }, async (results, status) => {
+        const altitude = await elevationPromise
         if (status === 'OK' && results?.[0]) {
           const r = results[0]
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const viewport = (r as any).geometry?.viewport as Viewport | undefined
-          resolve(calcArrivalRange(viewport, r.types, name))
+          resolve(calcArrivalRange(viewport, r.types, name, altitude))
         } else {
-          resolve({ range: DEFAULT_RANGE, tilt: DEFAULT_TILT })
+          resolve({ range: DEFAULT_RANGE, tilt: DEFAULT_TILT, altitude })
         }
       })
     } catch {
-      resolve({ range: DEFAULT_RANGE, tilt: DEFAULT_TILT })
+      resolve({ range: DEFAULT_RANGE, tilt: DEFAULT_TILT, altitude: 0 })
     }
   })
 }

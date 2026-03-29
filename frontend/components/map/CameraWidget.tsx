@@ -98,13 +98,13 @@ export function CameraWidget({ gestureState }: CameraWidgetProps) {
       })
     }
 
-    const { range, tilt } = await resolveArrivalRange(
+    const { range, tilt, altitude } = await resolveArrivalRange(
       stop.lat, stop.lng,
       stop.name,
       { range: stop.range, tilt: stop.tilt },
     )
-    console.log('[widget] flying to', stop.name, 'range:', range, 'tilt:', tilt)
-    await navigateToLocation(stop.lat, stop.lng, range, tilt)
+    console.log('[widget] flying to', stop.name, 'range:', range, 'tilt:', tilt, 'altitude:', altitude)
+    await navigateToLocation(stop.lat, stop.lng, range, tilt, altitude)
 
     // Delay overlay 1s after landing so the landmark settles first
     await new Promise(r => setTimeout(r, 1_000))

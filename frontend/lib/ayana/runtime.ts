@@ -117,7 +117,7 @@ export async function activateCity(
   await exitStreetView()
   const placeQuery = buildCityGeocodeQuery(input.cityName, input.countryName)
   const resolvedPlace = await geocodePlaceQuery(placeQuery)
-  const { range, tilt } = calcArrivalRange(
+  const { range, tilt, altitude } = calcArrivalRange(
     resolvedPlace.viewport,
     resolvedPlace.types,
     input.cityName
@@ -127,7 +127,8 @@ export async function activateCity(
     resolvedPlace.lat,
     resolvedPlace.lng,
     range,
-    tilt
+    tilt,
+    altitude,
   )
 
   if (!navigation.ok) {
@@ -160,7 +161,7 @@ export async function activateLandmark(
     input.countryName
   )
   const resolvedPlace = await geocodePlaceQuery(placeQuery)
-  const { range, tilt } = calcArrivalRange(
+  const { range, tilt, altitude } = calcArrivalRange(
     resolvedPlace.viewport,
     resolvedPlace.types,
     input.landmarkName
@@ -170,7 +171,8 @@ export async function activateLandmark(
     resolvedPlace.lat,
     resolvedPlace.lng,
     range,
-    tilt
+    tilt,
+    altitude,
   )
 
   if (!navigation.ok) {

@@ -6,14 +6,14 @@ import { playSwoosh } from './sound'
 export async function flyTo(
   lat: number,
   lng: number,
-  opts: { range?: number; tilt?: number; heading?: number; durationMs?: number } = {}
+  opts: { range?: number; tilt?: number; heading?: number; durationMs?: number; altitude?: number } = {}
 ): Promise<{ ok: boolean }> {
   const map = mapRef.current
   console.log('[cam] flyTo', { lat, lng, ...opts }, 'map:', !!map)
   if (!map) return { ok: false }
   await map.flyCameraTo({
     endCamera: {
-      center: { lat, lng, altitude: 0 },
+      center: { lat, lng, altitude: opts.altitude ?? 0 },
       tilt: opts.tilt ?? 68,
       heading: opts.heading ?? 0,
       range: opts.range ?? 900,
@@ -25,12 +25,12 @@ export async function flyTo(
 
 // ── Cinematic fly-in + single orbit ─────────────────────────────────────────
 
-export async function flyInWithOrbit(lat: number, lng: number): Promise<{ ok: boolean }> {
+export async function flyInWithOrbit(lat: number, lng: number, altitude = 0): Promise<{ ok: boolean }> {
   const map = mapRef.current
-  console.log('[cam] flyInWithOrbit', { lat, lng }, 'map:', !!map)
+  console.log('[cam] flyInWithOrbit', { lat, lng, altitude }, 'map:', !!map)
   if (!map) return { ok: false }
   await map.flyCameraTo({
-    endCamera: { center: { lat, lng, altitude: 0 }, tilt: 68, heading: 0, range: 900 },
+    endCamera: { center: { lat, lng, altitude }, tilt: 68, heading: 0, range: 900 },
     durationMillis: 3_500,
   }).catch((e) => console.log('[cam] flyInWithOrbit swoop interrupted', e))
   console.log('[cam] flyInWithOrbit complete')
@@ -44,9 +44,10 @@ export async function navigateToLocation(
   lng: number,
   arrivalRange = 450,
   arrivalTilt  = 68,
+  arrivalAltitude = 0,
 ): Promise<{ ok: boolean }> {
   const map = mapRef.current
-  console.log('[cam] navigateToLocation', { lat, lng, arrivalRange, arrivalTilt }, 'map:', !!map)
+  console.log('[cam] navigateToLocation', { lat, lng, arrivalRange, arrivalTilt, arrivalAltitude }, 'map:', !!map)
   if (!map) return { ok: false }
 
   playSwoosh()
@@ -57,9 +58,9 @@ export async function navigateToLocation(
     durationMillis: 2_000,
   }).catch((e) => console.log('[cam] navigateToLocation pullback interrupted', e))
 
-  // Step 2 — swoop into destination at per-location arrival range + tilt
+  // Step 2 — swoop into destination at per-location arrival range + tilt + altitude
   await map.flyCameraTo({
-    endCamera: { center: { lat, lng, altitude: 0 }, tilt: arrivalTilt, heading: 0, range: arrivalRange },
+    endCamera: { center: { lat, lng, altitude: arrivalAltitude }, tilt: arrivalTilt, heading: 0, range: arrivalRange },
     durationMillis: 3_000,
   }).catch((e) => console.log('[cam] navigateToLocation swoop interrupted', e))
 
