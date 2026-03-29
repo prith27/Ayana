@@ -345,6 +345,7 @@ export default function LandingPage() {
   const selectedGeneratedItinerary =
     prepResponse?.itineraries.find((itinerary) => itinerary.id === selectedGeneratedItineraryId) ??
     null
+  const showGestureCameraCard = LIVE_AGENT_ENABLED && selectedGeneratedItinerary !== null
   const showLoadingState =
     persona !== null &&
     (
@@ -602,14 +603,56 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Hidden video for gesture camera feed */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }}
-      />
+      {/* Runtime gesture camera card */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 20,
+          bottom: 58,
+          zIndex: 26,
+          width: 188,
+          pointerEvents: 'none',
+          opacity: showGestureCameraCard ? 1 : 0,
+          transform: showGestureCameraCard ? 'translateY(0)' : 'translateY(12px)',
+          transition: 'opacity 0.35s ease, transform 0.35s cubic-bezier(0.22,1,0.36,1)',
+        }}
+      >
+        <div
+          style={{
+            background: 'rgba(6,8,18,0.66)',
+            backdropFilter: 'blur(18px)',
+            WebkitBackdropFilter: 'blur(18px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.28)',
+            borderRadius: 14,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              aspectRatio: '4 / 3',
+              background: 'rgba(255,255,255,0.04)',
+            }}
+          >
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'block',
+                objectFit: 'cover',
+                transform: 'scaleX(-1)',
+                opacity: showGestureCameraCard ? 0.9 : 0,
+                transition: 'opacity 0.25s ease',
+              }}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Itinerary selection — very first screen */}
       {stage === 'selectingPersona' && (
@@ -802,3 +845,4 @@ function buildLandmarkTagline(
   })
   return matchedLandmark?.why_this_stop ?? itinerary.title
 }
+

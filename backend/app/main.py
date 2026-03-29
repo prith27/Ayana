@@ -39,7 +39,7 @@ from ayana_orchestration import (  # noqa: E402
 from ayana_prep.router import router as ayana_prep_router  # noqa: E402
 from ayana_recap.router import router as ayana_recap_router  # noqa: E402
 from ayana_tool_handlers import build_post_ack_followup  # noqa: E402
-from google_search_agent.agent import agent  # noqa: E402
+from ayana_agent.agent import agent  # noqa: E402
 
 # Configure logging
 logging.basicConfig(

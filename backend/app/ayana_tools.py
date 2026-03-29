@@ -77,7 +77,7 @@ def choose_itinerary(
         tool="choose_itinerary",
         summary=(
             f"Ayana is moving into {city_name}, {country_name}. Say only one short "
-            "transition line about heading there, DO NOT describe the destination "
+            "transition line about heading there, DO NOT describe the destination , DONT ASK ANY QUESTIONS TO THE USER LIKE ABOUT THE NEXT LANDMARK OR ANYTHING ELSE AT THIS PHASE"
             "yet, and wait for the follow-up before continuing the experience. DO NOT USE WORDS LIKE WELCOME , JUST SOMETHING THATS TRANSITION IN NATURE LIKE LETS DIVE INTO"
         ),
         job_id=job_id,
@@ -140,7 +140,7 @@ def move_to_landmark(
         else (
             f"Ayana is guiding the journey toward {normalized_landmark_name} in "
             f"{city_name}, {country_name}. Say only one short transition line like "
-            f"heading into {normalized_landmark_name}, do not describe the place "
+            f"heading into {normalized_landmark_name}, do not describe the place, DONT ASK ANY QUESTIONS TO THE USER LIKE ABOUT THE NEXT LANDMARK OR ANYTHING ELSE AT THIS PHASE "
             f"yet, and PLEASE wait for the follow-up for acutally describing {normalized_landmark_name}. DO NOT USE WORDS LIKE WELCOME , JUST SOMETHING THATS TRANSITION IN NATURE LIKE LETS DIVE INTO"
         )
     )
@@ -336,8 +336,8 @@ def open_place_street_view(
         tool="open_place_street_view",
         summary=(
             f"Ayana is opening Street View for {canonical_name}. Say only one short "
-            "transition line about stepping into the street-level view, do not describe "
-            "the scene yet, and wait for the follow-up before narrating what they see."
+            "transition line about stepping into the street-level view, DO NOT describe the place, DONT ASK ANY QUESTIONS TO THE USER LIKE ABOUT THE NEXT LANDMARK OR ANYTHING ELSE AT THIS PHASE "
+            "and wait for the follow-up before narrating what they see."
         ),
         job_id=job_id,
         payload={"place_name": canonical_name},

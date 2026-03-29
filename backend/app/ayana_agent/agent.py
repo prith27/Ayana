@@ -11,7 +11,7 @@ from ayana_tools import (
     open_place_street_view,
     show_nearby,
 )
-from google_search_agent.prompt import build_ayana_instruction
+from ayana_agent.prompt import build_ayana_instruction
 
 # Default models for Live API with native audio support:
 # - Gemini Live API: gemini-2.5-flash-native-audio-preview-12-2025

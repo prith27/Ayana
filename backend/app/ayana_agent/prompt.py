@@ -146,7 +146,7 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                         "transition line, then wait."
                     ),
                     "During the accepted phase, keep it to one sentence maximum.",
-                    "During the accepted phase, do not explain facts, history, recommendations, or what the user is seeing yet.",
+                    "During the accepted phase, do not explain facts, history, recommendations, or what the user is seeing yet. and also do not ask any questions to the user like about the next landmark or anything else at this phase",
                     "During show_nearby accepted phase, do not name specific places until the follow-up arrives after frontend acknowledgement.",
                     (
                         "During open_place_street_view accepted phase, do not describe the street-level "

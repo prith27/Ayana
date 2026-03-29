@@ -35,7 +35,6 @@ export function Sidebar({
   data,
   category,
   onClose,
-  onPlaceStreetView,
   onPlacesReady,
   onPlacesError,
 }: SidebarProps) {
@@ -186,7 +185,6 @@ export function Sidebar({
                 <PlaceCard
                   key={place.placeId}
                   place={place}
-                  onStreetView={() => onPlaceStreetView(place.lat, place.lng)}
                 />
               ))
           }
@@ -205,7 +203,7 @@ function formatTypes(types: string[]): string {
     .join(' · ')
 }
 
-function PlaceCard({ place, onStreetView }: { place: NearbyPlace; onStreetView: () => void }) {
+function PlaceCard({ place }: { place: NearbyPlace }) {
   const price = formatPriceLevel(place.priceLevel)
   const typeLabel = formatTypes(place.types)
 
@@ -258,22 +256,6 @@ function PlaceCard({ place, onStreetView }: { place: NearbyPlace; onStreetView: 
         )}
       </div>
 
-      {/* Street View button */}
-      <div style={{ padding: '8px 14px 10px' }}>
-        <button
-          onClick={onStreetView}
-          style={{
-            width: '100%', padding: '7px 0', background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, cursor: 'pointer',
-            color: 'rgba(255,255,255,0.6)', fontSize: 11, letterSpacing: '0.06em',
-            textTransform: 'uppercase', transition: 'background 0.15s, color 0.15s',
-          }}
-          onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)'; (e.target as HTMLButtonElement).style.color = 'rgba(255,255,255,0.9)' }}
-          onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.target as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)' }}
-        >
-          Street View →
-        </button>
-      </div>
     </div>
   )
 }

@@ -140,9 +140,44 @@ interface CityOverlayProps {
   tagline?: string
 }
 
+function getTitleLayout(name: string): {
+  fontSize: string
+  letterSpacing: string
+  lineHeight: number
+  maxWidth: string
+} {
+  const length = name.trim().length
+
+  if (length >= 28) {
+    return {
+      fontSize: 'clamp(24px, 3vw, 42px)',
+      letterSpacing: '0.12em',
+      lineHeight: 1.18,
+      maxWidth: 'min(88vw, 780px)',
+    }
+  }
+
+  if (length >= 20) {
+    return {
+      fontSize: 'clamp(26px, 3.5vw, 48px)',
+      letterSpacing: '0.18em',
+      lineHeight: 1.16,
+      maxWidth: 'min(88vw, 840px)',
+    }
+  }
+
+  return {
+    fontSize: 'clamp(28px, 4vw, 56px)',
+    letterSpacing: '0.32em',
+    lineHeight: 1.12,
+    maxWidth: 'min(86vw, 960px)',
+  }
+}
+
 export function CityOverlay({ cityName, preset: presetProp, tagline: taglineProp }: CityOverlayProps) {
   const preset  = PRESETS[presetProp ?? resolvePreset(cityName)]
   const tagline = taglineProp ?? resolveTagline(cityName, preset.tagline)
+  const titleLayout = getTitleLayout(cityName)
 
   const [visibleCount, setVisibleCount] = useState(0)
   const [showTagline, setShowTagline]   = useState(false)
@@ -190,65 +225,97 @@ export function CityOverlay({ cityName, preset: presetProp, tagline: taglineProp
           pointerEvents: 'none',
         }}
       >
-        {/* City name — typewriter */}
-        <h2
-          style={{
-            margin: 0,
-            fontWeight: 200,
-            fontSize: 'clamp(28px, 4vw, 56px)',
-            letterSpacing: '0.32em',
-            textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.92)',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            textAlign: 'center',
-          }}
-        >
-          {cityName.split('').map((char, i) => (
-            <span
-              key={i}
-              style={
-                i < visibleCount
-                  ? { display: 'inline-block', animation: 'ayanaLetterBloom 0.6s ease forwards' }
-                  : { display: 'inline-block', opacity: 0 }
-              }
-            >
-              {char === ' ' ? '\u00A0' : char}
-            </span>
-          ))}
-        </h2>
-
-        {/* Accent line */}
         <div
           style={{
-            height: 1,
-            background: preset.accent,
-            margin: '18px 0',
-            width: showTagline ? 'min(480px, 60vw)' : '0px',
-            transition: 'width 0.6s ease',
-            opacity: 0.7,
-          }}
-        />
-
-        {/* Tagline */}
-        <p
-          style={{
-            margin: 0,
-            fontSize: 13,
-            color: 'rgba(255,255,255,0.45)',
-            letterSpacing: '0.18em',
-            fontStyle: 'italic',
-            fontWeight: 300,
-            textAlign: 'center',
-            opacity: showTagline ? 1 : 0,
-            transform: showTagline ? 'translateY(0)' : 'translateY(10px)',
-            transition: showTagline
-              ? 'opacity 0.5s ease, transform 0.5s ease'
-              : 'none',
+            width: '100%',
+            maxWidth: 'min(92vw, 1080px)',
+            padding: '0 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            boxSizing: 'border-box',
           }}
         >
-          {tagline}
-        </p>
+          {/* City / landmark title — wraps instead of clipping */}
+          <h2
+            style={{
+              margin: 0,
+              maxWidth: titleLayout.maxWidth,
+              overflow: 'hidden',
+              fontWeight: 200,
+              fontSize: titleLayout.fontSize,
+              lineHeight: titleLayout.lineHeight,
+              maxHeight: `${titleLayout.lineHeight * 2}em`,
+              letterSpacing: titleLayout.letterSpacing,
+              textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.92)',
+              userSelect: 'none',
+              whiteSpace: 'normal',
+              textAlign: 'center',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              textWrap: 'balance',
+            }}
+          >
+            {cityName.split('').map((char, i) => (
+              <span
+                key={i}
+                style={
+                  i < visibleCount
+                    ? {
+                        display: char === ' ' ? 'inline' : 'inline-block',
+                        animation: 'ayanaLetterBloom 0.6s ease forwards',
+                      }
+                    : {
+                        display: char === ' ' ? 'inline' : 'inline-block',
+                        opacity: 0,
+                      }
+                }
+              >
+                {char}
+              </span>
+            ))}
+          </h2>
+
+          {/* Accent line */}
+          <div
+            style={{
+              height: 1,
+              background: preset.accent,
+              margin: '18px 0',
+              width: showTagline ? 'min(480px, 60vw)' : '0px',
+              transition: 'width 0.6s ease',
+              opacity: 0.7,
+            }}
+          />
+
+          {/* Tagline */}
+          <p
+            style={{
+              margin: 0,
+              maxWidth: 'min(76vw, 760px)',
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 2,
+              fontSize: 13,
+              lineHeight: 1.45,
+              color: 'rgba(255,255,255,0.45)',
+              letterSpacing: '0.18em',
+              fontStyle: 'italic',
+              fontWeight: 300,
+              textAlign: 'center',
+              overflowWrap: 'anywhere',
+              opacity: showTagline ? 1 : 0,
+              transform: showTagline ? 'translateY(0)' : 'translateY(10px)',
+              transition: showTagline
+                ? 'opacity 0.5s ease, transform 0.5s ease'
+                : 'none',
+            }}
+          >
+            {tagline}
+          </p>
+        </div>
       </div>
     </>
   )
