@@ -281,13 +281,21 @@ export function LiveAgentSession({
       handleServerMessage(event.data)
     }
 
-    socket.onerror = (error) => {
-      console.error('[live-agent] websocket error', error)
+    socket.onerror = () => {
+      // Browser gives a generic Event here; use onclose code/reason for diagnosis.
+      console.error(
+        '[live-agent] websocket error (if backend is down, start FastAPI on the URL from NEXT_PUBLIC_LIVE_AGENT_WS_URL or port 8000)'
+      )
       setAgentDisconnected()
     }
 
-    socket.onclose = () => {
-      console.info('[live-agent] websocket closed', { sessionId })
+    socket.onclose = (event) => {
+      console.info('[live-agent] websocket closed', {
+        sessionId,
+        code: event.code,
+        reason: event.reason || '(none)',
+        wasClean: event.wasClean,
+      })
       websocketRef.current = null
       setAgentDisconnected()
       if (pendingEndSessionRef.current && !finalizingEndSessionRef.current) {

@@ -34,6 +34,7 @@ class AyanaSessionState:
     wrap_checkpoint_offered: bool = False
     session_ending: bool = False
     pending_jobs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    landmark_visit_count: int = 0
 
 
 _SESSION_STATE: dict[str, AyanaSessionState] = {}
@@ -340,6 +341,7 @@ def mark_current_landmark(
         "overlay_preset": landmark.get("overlay_preset"),
         "tagline": landmark.get("tagline"),
     }
+    state.landmark_visit_count += 1
     state.nearby_places = []
     state.nearby_category = None
     state.sidebar_visible = False

@@ -241,6 +241,36 @@ def show_nearby(
     return result
 
 
+def end_session(
+    tool_context: ToolContext,
+) -> dict[str, object]:
+    """Close the Ayana session and hand off to the journey recap experience."""
+    session_id = tool_context.session.id
+    job_id = str(uuid4())
+
+    frontend_action = build_frontend_action(
+        "ayana.end_session",
+        "end_session",
+        {},
+        job_id=job_id,
+    )
+
+    result = build_tool_result(
+        status="accepted",
+        tool="end_session",
+        summary=(
+            "The session is ending. Deliver one final, cinematic farewell — "
+            "warm, brief, poetic, like closing a beautiful film. "
+            "Something that makes the user feel the weight of the journey they just took. "
+            "Do not mention a recap, app, or anything technical. Say nothing after that."
+        ),
+        job_id=job_id,
+        frontend_action=frontend_action,
+    )
+    _publish_result(session_id, result)
+    return result
+
+
 def _normalize_place_name_token(value: str) -> str:
     return value.strip().casefold()
 
