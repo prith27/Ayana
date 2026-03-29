@@ -59,31 +59,38 @@ def _build_choose_itinerary_followup(
     city_name = itinerary.get("city_name", DEFAULT_CITY_LABEL)
     country_name = itinerary.get("country_name", "")
     title = itinerary.get("title", "")
-    landmark_names = [
-        landmark.get("name")
-        for landmark in itinerary.get("landmarks", [])
-        if isinstance(landmark, dict) and isinstance(landmark.get("name"), str)
-    ]
+    landmark_names = _extract_itinerary_landmark_names(itinerary)
     pending_job = get_pending_job(session_id, ack["job_id"]) or {}
     screenshot_note = (
         "You have received a fresh frontend image for grounding. "
         if pending_job.get("image_sent")
         else ""
     )
-    landmark_grounding = (
-        "Suggested landmarks for the next beats: "
-        + ", ".join(landmark_names[:4])
-        + "."
-        if landmark_names
-        else ""
-    )
+
+    if landmark_names:
+        first_landmark_name = landmark_names[0]
+        onward_instruction = (
+            f"After that brief introduction, do not ask for permission first: "
+            f"naturally guide into the first itinerary stop and call "
+            f"move_to_landmark for '{first_landmark_name}'."
+        )
+        landmark_grounding = (
+            "The first itinerary landmarks are: "
+            + ", ".join(landmark_names[:4])
+            + "."
+        )
+    else:
+        onward_instruction = (
+            "There is no named landmark list for this itinerary, so keep the city "
+            "introduction grounded and then ask the user what they want to explore first."
+        )
+        landmark_grounding = ""
 
     return (
         f"{screenshot_note}The transition into {city_name}, {country_name} is now "
-        f"visibly complete. Continue as Ayana with a grounded introduction to "
-        f"the city, anchor the tone around '{title}', and naturally suggest the "
-        f"user can continue with nearby landmarks or let you guide the journey. "
-        f"{landmark_grounding}"
+        f"visibly complete. Continue as Ayana with a grounded, cinematic introduction "
+        f"to the city, anchor the tone around '{title}', and frame the journey that is "
+        f"about to begin. {onward_instruction} {landmark_grounding}"
     ).strip()
 
 
@@ -118,19 +125,29 @@ def _build_move_to_landmark_followup(
 
     itinerary = resolve_selected_itinerary(session_id)
     matched_landmark = _find_matching_landmark(itinerary, landmark_name)
+    next_landmark_name = _find_next_itinerary_landmark_name(itinerary, landmark_name)
 
     mark_current_landmark(session_id, landmark=ack_payload)
 
     screenshot_note = _build_screenshot_note(session_id, ack)
     grounding_suffix = _build_landmark_grounding_suffix(matched_landmark)
+    next_destination_instruction = (
+        f"Offer a guided choice at the end: nearby food, activities, shopping, "
+        f"or the next landmark '{next_landmark_name}'."
+        if next_landmark_name
+        else (
+            "Offer a guided choice at the end: nearby food, activities, shopping, "
+            "or continuing onward to another landmark."
+        )
+    )
 
     return (
         f"{screenshot_note}The arrival at {landmark_name} in {city_name}, "
         f"{country_name} is now visibly complete. Continue as Ayana with a "
         "grounded explanation of what the user is seeing, share one or two vivid "
-        "details about this landmark, and naturally offer the next exploration beat "
-        "within the same city context."
-        f"{grounding_suffix}"
+        "details about this landmark, weave in itinerary grounding when relevant, "
+        "and then become interactive instead of auto-moving on. "
+        f"{next_destination_instruction}{grounding_suffix}"
     ).strip()
 
 
@@ -183,8 +200,9 @@ def _build_show_nearby_followup(
         f"around {landmark_name or city_name}. The returned options include "
         f"{place_summary}. Continue as Ayana by briefly grounding the user in these "
         "visible options, mention concrete details like rating, reviews, type, or "
-        "address when helpful, and ask which of these places they would like to "
-        "explore next."
+        "address when helpful, and ask which of these visible places they would like "
+        "to visit. If the user chooses one of the shown places, call "
+        "open_place_street_view with that exact place_name."
     ).strip()
 
 
@@ -224,9 +242,10 @@ def _build_open_place_street_view_followup(
     return (
         f"{screenshot_note}Street View for {place_name.strip()} is now visibly open. "
         f"Continue as Ayana with a grounded, immersive reaction to what the user sees "
-        f"in this panorama—reference the scene naturally and offer a sensible next beat "
-        f"(nearby stop, different angle, or back to the map) without inventing coverage "
-        f"that is not there.{detail_suffix}"
+        f"in this panorama, explain the place and visible street-level view, and then "
+        f"become interactive by asking whether they want to explore other nearby options, "
+        f"switch nearby category, or continue onward. Do not invent coverage that is not "
+        f"there.{detail_suffix}"
     ).strip()
 
 
@@ -262,6 +281,25 @@ def _find_matching_landmark(
             and candidate_name.strip().lower() == normalized_name
         ):
             return landmark
+    return None
+
+
+def _find_next_itinerary_landmark_name(
+    itinerary: dict[str, Any] | None,
+    landmark_name: str,
+) -> str | None:
+    """Return the next itinerary landmark name after the current one, if any."""
+    if itinerary is None:
+        return None
+
+    normalized_name = landmark_name.strip().lower()
+    ordered_landmarks = _extract_itinerary_landmark_names(itinerary)
+    for index, candidate_name in enumerate(ordered_landmarks):
+        if candidate_name.lower() != normalized_name:
+            continue
+        if index + 1 < len(ordered_landmarks):
+            return ordered_landmarks[index + 1]
+        return None
     return None
 
 
@@ -306,4 +344,21 @@ def _extract_place_names(places: list[dict[str, Any]]) -> list[str]:
         place_name = place.get("name")
         if isinstance(place_name, str) and place_name.strip():
             names.append(place_name.strip())
+    return names
+
+
+def _extract_itinerary_landmark_names(
+    itinerary: dict[str, Any] | None,
+) -> list[str]:
+    """Return ordered itinerary landmark names."""
+    if itinerary is None:
+        return []
+
+    names: list[str] = []
+    for landmark in itinerary.get("landmarks", []):
+        if not isinstance(landmark, dict):
+            continue
+        name = landmark.get("name")
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
     return names

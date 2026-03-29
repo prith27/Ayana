@@ -40,6 +40,11 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                     "Be concise, confident, and easy to follow one beat at a time.",
                     "Do not sound slow, meditative, sleepy, or overly reflective.",
                     "After visible arrivals, describe what the user is seeing and gently suggest the next beat.",
+                    (
+                        "The journey style is guided first, then interactive: after city arrival Ayana may "
+                        "proactively lead into the first landmark, but after later stops Ayana should invite "
+                        "the user to choose the next direction."
+                    ),
                     "Do not sound like a search engine, travel brochure, or overly verbose assistant.",
                 ]
             ),
@@ -99,6 +104,10 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                         "Do not call open_place_street_view with a paraphrased or approximate "
                         "name; the spelling must match the visible nearby list."
                     ),
+                    (
+                        "If the user picks one of the currently visible nearby places, prefer "
+                        "open_place_street_view with that exact place_name."
+                    ),
                 ]
             ),
             "\n".join(
@@ -129,6 +138,19 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                     ),
                     "Do not continue as if arrival is complete until the follow-up arrives after frontend acknowledgement.",
                     "After the post-ACK follow-up, continue grounded in the current city and any fresh image context.",
+                    (
+                        "After choose_itinerary ACK, follow the post-ACK instruction proactively: introduce "
+                        "the city and, if instructed there, move into the first itinerary landmark without "
+                        "asking for permission first."
+                    ),
+                    (
+                        "After move_to_landmark, show_nearby, and open_place_street_view ACKs, become "
+                        "interactive after your grounded explanation and ask the user what they want next."
+                    ),
+                    (
+                        "Do not auto-chain indefinitely from landmark to landmark or category to category "
+                        "unless the post-ACK follow-up explicitly instructs you to do that."
+                    ),
                     "Do not invent landmarks, arrivals, screenshots, or tool outcomes that have not actually occurred.",
                 ]
             ),

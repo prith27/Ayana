@@ -12,6 +12,8 @@ if str(BACKEND_APP_DIR) not in sys.path:
 from ayana_orchestration import (  # noqa: E402
     get_or_create_session_state,
     mark_nearby_places,
+    mark_selected_itinerary,
+    sync_prep_state,
 )
 from ayana_tool_handlers import build_post_ack_followup  # noqa: E402
 
@@ -76,3 +78,89 @@ def test_post_ack_street_view_failed_does_not_mutate_visible_state() -> None:
     state_after = get_or_create_session_state(sid)
     assert state_after.street_view_visible is False
     assert state_after.sidebar_visible is True
+
+
+def test_choose_itinerary_followup_guides_into_first_landmark() -> None:
+    sid = "test-session-guided-city"
+    itinerary = {
+        "id": "kyoto_food_01",
+        "city_name": "Kyoto",
+        "country_name": "Japan",
+        "title": "Lanterns and Late Bites",
+        "landmarks": [
+            {"name": "Fushimi Inari Shrine"},
+            {"name": "Gion"},
+        ],
+    }
+    sync_prep_state(
+        sid,
+        persona="foodie",
+        generated_itineraries=[itinerary],
+    )
+
+    msg = build_post_ack_followup(
+        sid,
+        {
+            "status": "applied",
+            "action_type": "ayana.choose_itinerary",
+            "job_id": "job-city-1",
+            "payload": {
+                "itinerary_id": "kyoto_food_01",
+                "city_name": "Kyoto",
+                "country_name": "Japan",
+            },
+        },
+    )
+
+    assert msg is not None
+    assert "move_to_landmark" in msg
+    assert "Fushimi Inari Shrine" in msg
+
+
+def test_move_to_landmark_followup_becomes_interactive() -> None:
+    sid = "test-session-guided-landmark"
+    itinerary = {
+        "id": "kyoto_food_01",
+        "city_name": "Kyoto",
+        "country_name": "Japan",
+        "title": "Lanterns and Late Bites",
+        "landmarks": [
+            {
+                "name": "Fushimi Inari Shrine",
+                "why_this_stop": "It sets the tone for the city.",
+                "facts": ["The torii path winds up the mountain."],
+            },
+            {"name": "Gion"},
+        ],
+    }
+    sync_prep_state(
+        sid,
+        persona="foodie",
+        generated_itineraries=[itinerary],
+    )
+    mark_selected_itinerary(sid, itinerary=itinerary)
+
+    msg = build_post_ack_followup(
+        sid,
+        {
+            "status": "applied",
+            "action_type": "ayana.move_to_landmark",
+            "job_id": "job-landmark-1",
+            "payload": {
+                "itinerary_id": "kyoto_food_01",
+                "city_name": "Kyoto",
+                "country_name": "Japan",
+                "landmark_name": "Fushimi Inari Shrine",
+                "formatted_address": "Kyoto, Japan",
+                "lat": 35.0,
+                "lng": 135.0,
+                "overlay_preset": "heritage",
+                "tagline": "A mountain of gates",
+            },
+        },
+    )
+
+    assert msg is not None
+    assert "food, activities, shopping" in msg
+    assert "Gion" in msg
+    assert "Why this stop matters" in msg
