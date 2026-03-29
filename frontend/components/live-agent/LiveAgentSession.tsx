@@ -38,7 +38,7 @@ import {
   recordCityEvent,
   recordLandmarkEvent,
 } from '@/lib/ayana/transcript'
-
+import type { PlaceCategory } from '@/lib/places/nearbySearch'
 interface ChooseItineraryActionResult {
   itineraryId: string
   cityName: string
