@@ -130,7 +130,7 @@ export function PrepLoadingOverlay({
   const [showAtmosphere, setShowAtmosphere] = useState(false)
   const [readyToTransition, setReadyToTransition] = useState(false)
 
-  useCinematicAudio(!isError && mounted)
+  useCinematicAudio(!isError && mounted, readyToTransition)
 
   // Mount entrance (opacity 0→1)
   useEffect(() => {
@@ -197,7 +197,7 @@ export function PrepLoadingOverlay({
   // Transition gate: cinematic done AND data loaded
   useEffect(() => {
     if (!readyToTransition || !isLoaded) return
-    const t = setTimeout(() => onComplete?.(), 1500)
+    const t = setTimeout(() => onComplete?.(), 4_000)
     return () => clearTimeout(t)
   }, [readyToTransition, isLoaded, onComplete])
 
@@ -226,7 +226,7 @@ export function PrepLoadingOverlay({
           ].join(' '),
           pointerEvents: isError ? 'auto' : 'none',
           opacity: fadeOut ? 0 : mounted ? 1 : 0,
-          transition: 'opacity 0.58s cubic-bezier(0.22,1,0.36,1)',
+          transition: 'opacity 1.2s cubic-bezier(0.22,1,0.36,1)',
           overflow: 'hidden',
         }}
       >

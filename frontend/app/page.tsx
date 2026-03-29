@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useRouter } from 'next/navigation'
 import { loadMaps3D } from '@/lib/maps/loader'
 import { mapRef } from '@/lib/maps/mapRef'
 import { LiveAgentSession } from '@/components/live-agent/LiveAgentSession'
@@ -357,7 +356,7 @@ export default function LandingPage() {
 
   function handleCinematicComplete() {
     setStage('selectingGeneratedItinerary')
-    window.setTimeout(() => setLoadingCueVisible(false), 420)
+    window.setTimeout(() => setLoadingCueVisible(false), 1200)
   }
 
   async function runPrep(selectedPersona: Persona) {

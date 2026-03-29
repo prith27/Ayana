@@ -1,25 +1,83 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+
+const TRACK_SRC   = '/sounds/loading-theme.mp3'
+const PEAK_VOL    = 0.28
+const FADE_IN_MS  = 1_500
+const FADE_OUT_MS = 4_000
+
+/** Smoothly ramp an audio element's volume from `from` to `to` over `ms` milliseconds.
+ *  Returns a cancel function to stop the ramp early. */
+function rampVolume(
+  audio: HTMLAudioElement,
+  from: number,
+  to: number,
+  ms: number,
+): () => void {
+  const steps = Math.ceil(ms / 50)
+  const delta = (to - from) / steps
+  let step = 0
+  audio.volume = Math.max(0, Math.min(1, from))
+  const id = setInterval(() => {
+    step++
+    audio.volume = Math.max(0, Math.min(1, from + delta * step))
+    if (step >= steps) clearInterval(id)
+  }, 50)
+  return () => clearInterval(id)
+}
+
 /**
- * Cinematic loading screen audio — infrastructure ready, inactive until assets added.
+ * Plays the loading screen background music.
  *
- * To activate: add these files to public/sounds/
- *   - ambient-pad.mp3   (base warm cinematic pad, loops)
- *   - wind.mp3          (wind layer, loops, fades in at 2.5s)
- *   - heartbeat.mp3     (soft heartbeat, loops, fades in at 4s)
- *   - cinematic-swell.mp3 (uplift swell, plays once at 8s)
- *
- * Pattern: same HTMLAudioElement reuse as lib/maps/sound.ts
+ * @param active   true when the overlay is mounted and error-free
+ * @param fadeOut  true when the AYANA phase begins (readyToTransition)
  */
+export function useCinematicAudio(active: boolean, fadeOut: boolean): void {
+  const audioRef  = useRef<HTMLAudioElement | null>(null)
+  const cancelRef = useRef<(() => void) | null>(null)
 
-// TODO: implement when audio files are placed in public/sounds/
-// Phase schedule:
-//   0.0s → ambient-pad fades in (0→0.18 vol over 2s)
-//   2.5s → wind layer fades in  (0→0.12 vol over 1.5s)
-//   4.0s → heartbeat fades in   (0→0.09 vol over 1s)
-//   8.0s → cinematic-swell plays (0.22 vol, no loop)
-//   onComplete → all layers fade out (over 0.8s)
+  // Mount / unmount — start or stop the music
+  useEffect(() => {
+    if (typeof window === 'undefined') return
 
-export function useCinematicAudio(_active: boolean): void {
-  // no-op until assets are available
+    if (active) {
+      const audio = new Audio(TRACK_SRC)
+      audio.volume = 0
+      audio.currentTime = 0
+      audioRef.current = audio
+
+      audio.play().then(() => {
+        cancelRef.current?.()
+        cancelRef.current = rampVolume(audio, 0, PEAK_VOL, FADE_IN_MS)
+      }).catch(() => {
+        // Browser blocked autoplay — silently ignore
+      })
+    } else {
+      cancelRef.current?.()
+      cancelRef.current = null
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+
+    return () => {
+      cancelRef.current?.()
+      cancelRef.current = null
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active])
+
+  // Fade out when AYANA phase begins
+  useEffect(() => {
+    if (!fadeOut || !audioRef.current) return
+    const audio = audioRef.current
+    cancelRef.current?.()
+    cancelRef.current = rampVolume(audio, audio.volume, 0, FADE_OUT_MS)
+  }, [fadeOut])
 }
