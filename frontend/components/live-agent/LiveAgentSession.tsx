@@ -11,6 +11,7 @@ import {
 import {
   base64ToArray,
   resumeAudioContext,
+  setAudioPlaybackStateSink,
   setAudioInputSink,
   type AudioPlayerResources,
 } from '@/lib/live-agent/audio'
@@ -168,6 +169,7 @@ export function LiveAgentSession({
   // Transcript accumulation buffers (partial chunks → flush on finished)
   const aiTurnBufferRef = useRef<string>('')
   const userTurnBufferRef = useRef<string>('')
+  const playbackIdleRef = useRef(true)
   const pendingEndSessionRef = useRef(false)
   const finalizingEndSessionRef = useRef(false)
   const endSessionIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -204,8 +206,15 @@ export function LiveAgentSession({
         socket.send(pcmData)
       }
     })
+    setAudioPlaybackStateSink(({ idle }) => {
+      playbackIdleRef.current = idle
+      if (idle) {
+        maybeFinalizePendingEndSession()
+      }
+    })
 
     return () => {
+      setAudioPlaybackStateSink(null)
       setAudioInputSink(null)
       disconnect(false)
       setAgentIdle()
@@ -377,6 +386,7 @@ export function LiveAgentSession({
     for (const part of parts) {
       if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/pcm') && playerRef.current) {
         markAssistantOutputActivity()
+        playbackIdleRef.current = false
         setAgentSpeaking()
         void resumeAudioContext(playerRef.current.context)
         playerRef.current.node.port.postMessage(base64ToArray(part.inlineData.data))
@@ -743,8 +753,18 @@ export function LiveAgentSession({
       clearTimeout(endSessionIdleTimerRef.current)
     }
     endSessionIdleTimerRef.current = setTimeout(() => {
-      void finalizePendingEndSession()
+      maybeFinalizePendingEndSession()
     }, END_SESSION_IDLE_DRAIN_MS)
+  }
+
+  function maybeFinalizePendingEndSession(): void {
+    if (!pendingEndSessionRef.current || finalizingEndSessionRef.current) {
+      return
+    }
+    if (!playbackIdleRef.current) {
+      return
+    }
+    void finalizePendingEndSession()
   }
 
   async function finalizePendingEndSession(): Promise<void> {

@@ -10,10 +10,12 @@ class PCMPlayerProcessor extends AudioWorkletProcessor {
     this.buffer = new Float32Array(this.bufferSize);
     this.writeIndex = 0;
     this.readIndex = 0;
+    this.playbackIdle = true;
 
     this.port.onmessage = (event) => {
       if (event.data.command === "endOfAudio") {
         this.readIndex = this.writeIndex;
+        this._setPlaybackIdle(true);
         return;
       }
 
@@ -23,6 +25,10 @@ class PCMPlayerProcessor extends AudioWorkletProcessor {
   }
 
   _enqueue(int16Samples) {
+    if (int16Samples.length > 0) {
+      this._setPlaybackIdle(false);
+    }
+
     for (let i = 0; i < int16Samples.length; i++) {
       const floatVal = int16Samples[i] / 32768;
       this.buffer[this.writeIndex] = floatVal;
@@ -32,6 +38,18 @@ class PCMPlayerProcessor extends AudioWorkletProcessor {
         this.readIndex = (this.readIndex + 1) % this.bufferSize;
       }
     }
+  }
+
+  _setPlaybackIdle(nextIdle) {
+    if (this.playbackIdle === nextIdle) {
+      return;
+    }
+
+    this.playbackIdle = nextIdle;
+    this.port.postMessage({
+      type: "playback_state",
+      idle: nextIdle,
+    });
   }
 
   process(inputs, outputs) {
@@ -47,6 +65,10 @@ class PCMPlayerProcessor extends AudioWorkletProcessor {
       if (this.readIndex !== this.writeIndex) {
         this.readIndex = (this.readIndex + 1) % this.bufferSize;
       }
+    }
+
+    if (this.readIndex === this.writeIndex) {
+      this._setPlaybackIdle(true);
     }
 
     return true;

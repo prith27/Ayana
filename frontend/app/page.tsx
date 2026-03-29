@@ -147,7 +147,7 @@ export default function LandingPage() {
   const [selectedGeneratedItineraryId, setSelectedGeneratedItineraryId] = useState<string | null>(null)
   const [activatingItineraryId, setActivatingItineraryId] = useState<string | null>(null)
   const [generatedOverlayExiting, setGeneratedOverlayExiting] = useState(false)
-  const [micMuted, setMicMuted] = useState(false)
+  const [micMuted, setMicMuted] = useState(true)
   const [landmarkInput, setLandmarkInput] = useState('')
   const [landmarkPreset, setLandmarkPreset] = useState<OverlayPreset>(DEFAULT_CITY_OVERLAY_PRESET)
   const [landmarkPending, setLandmarkPending] = useState(false)
@@ -287,6 +287,12 @@ export default function LandingPage() {
   }, [])
 
   useEffect(() => {
+    audioRecorderRef.current?.stream.getAudioTracks().forEach((track) => {
+      track.enabled = !micMuted
+    })
+  }, [micMuted])
+
+  useEffect(() => {
     return () => {
       if (itineraryRevealTimerRef.current) {
         clearTimeout(itineraryRevealTimerRef.current)
@@ -348,9 +354,7 @@ export default function LandingPage() {
     )
 
   function toggleMic() {
-    const nextMuted = !micMuted
-    audioRecorderRef.current?.stream.getAudioTracks().forEach(t => { t.enabled = !nextMuted })
-    setMicMuted(nextMuted)
+    setMicMuted((previous) => !previous)
   }
 
   function handleCinematicComplete() {

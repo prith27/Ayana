@@ -10,6 +10,7 @@ export interface AudioRecorderResources {
 }
 
 let audioInputSink: ((pcmData: ArrayBuffer) => void) | null = null
+let audioPlaybackStateSink: ((state: { idle: boolean }) => void) | null = null
 
 export async function requestMicrophoneStream(): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({
@@ -23,6 +24,19 @@ export async function startAudioPlayerWorklet(): Promise<AudioPlayerResources> {
   await resumeAudioContext(context)
 
   const node = new AudioWorkletNode(context, 'pcm-player-processor')
+  node.port.onmessage = (event: MessageEvent<unknown>) => {
+    const message = event.data
+    if (
+      typeof message === 'object' &&
+      message !== null &&
+      'type' in message &&
+      message.type === 'playback_state' &&
+      'idle' in message &&
+      typeof message.idle === 'boolean'
+    ) {
+      audioPlaybackStateSink?.({ idle: message.idle })
+    }
+  }
   node.connect(context.destination)
 
   return { node, context }
@@ -52,6 +66,12 @@ export function setAudioInputSink(
   sink: ((pcmData: ArrayBuffer) => void) | null
 ): void {
   audioInputSink = sink
+}
+
+export function setAudioPlaybackStateSink(
+  sink: ((state: { idle: boolean }) => void) | null
+): void {
+  audioPlaybackStateSink = sink
 }
 
 export function forwardAudioInput(pcmData: ArrayBuffer): void {

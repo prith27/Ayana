@@ -23,38 +23,12 @@ def _publish_result(session_id: str, result: dict[str, object]) -> None:
     publish_task.add_done_callback(lambda _: None)
 
 
-def _normalize_token(value: object) -> str:
-    """Return a casefolded token for loose exact-match checks."""
-    return str(value).strip().casefold()
-
-
-def _is_first_itinerary_landmark_move(
-    session_id: str,
-    normalized_landmark_name: str,
-) -> bool:
-    """Return True when this move targets the itinerary's first landmark."""
+def _is_first_landmark_move(session_id: str) -> bool:
+    """Return True when this is the session's first landmark move."""
     session_state = get_or_create_session_state(session_id)
-    if session_state.visited_landmark_count > 0 or session_state.current_landmark is not None:
-        return False
-
-    selected_itinerary_id = str(session_state.selected_itinerary_id or "").strip()
-    if not selected_itinerary_id:
-        return False
-
-    itinerary = resolve_itinerary(session_id, selected_itinerary_id)
-    if itinerary is None:
-        return False
-
-    landmarks = itinerary.get("landmarks")
-    if not isinstance(landmarks, list) or not landmarks:
-        return False
-
-    first_landmark = landmarks[0]
-    if not isinstance(first_landmark, dict):
-        return False
-
-    return _normalize_token(first_landmark.get("name")) == _normalize_token(
-        normalized_landmark_name
+    return (
+        session_state.visited_landmark_count == 0
+        and session_state.current_landmark is None
     )
 
 
@@ -103,8 +77,8 @@ def choose_itinerary(
         tool="choose_itinerary",
         summary=(
             f"Ayana is moving into {city_name}, {country_name}. Say only one short "
-            "transition line about heading there, do not describe the destination "
-            "yet, and wait for the follow-up before continuing the experience. DONT SAY ANYTHING LIKE WELCOME , JUST SOMETHING THATS TRANSITION IN NATURE LIKE LETS DIVE INTO"
+            "transition line about heading there, DO NOT describe the destination "
+            "yet, and wait for the follow-up before continuing the experience. DO NOT USE WORDS LIKE WELCOME , JUST SOMETHING THATS TRANSITION IN NATURE LIKE LETS DIVE INTO"
         ),
         job_id=job_id,
         payload={
@@ -162,7 +136,7 @@ def move_to_landmark(
     country_name = str(active_city.get("country_name", "")).strip()
     accepted_summary = (
         ""
-        if _is_first_itinerary_landmark_move(session_id, normalized_landmark_name)
+        if _is_first_landmark_move(session_id)
         else (
             f"Ayana is guiding the journey toward {normalized_landmark_name} in "
             f"{city_name}, {country_name}. Say only one short transition line like "
