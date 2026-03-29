@@ -159,12 +159,27 @@ Opens the sidebar panel at the given location with a specific category.
 
 ---
 
-### `hide_sidebar`
-Closes the sidebar panel.
+### `hide_sidebar` (legacy console/testing; not Ayana live)
+
+Older docs used a `hide_sidebar` tool to collapse the nearby panel. The **Ayana live orchestration agent** does not expose this tool for now: the sidebar is dismissed **implicitly** when entering Street View (`open_place_street_view`).
 
 ```json
 { "name": "hide_sidebar", "args": {} }
 ```
+
+---
+
+### `open_place_street_view` (Ayana live orchestration)
+
+Opens Street View for one place from the session’s latest nearby result set (populated after a successful `show_nearby` ACK).
+
+```json
+{ "name": "open_place_street_view", "args": { "place_name": "Kyoto Gogyo" } }
+```
+
+- `place_name` must **exactly** match a nearby listing after `strip()` and case-insensitive comparison (backend uses Unicode case-folding).
+- Frontend resolves `lat`/`lng` from cached nearby results and calls `flyToPlaceStreetView`.
+- If there is no Street View coverage, the frontend sends `frontend_ack` with `status: failed`.
 
 ---
 

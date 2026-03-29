@@ -2,15 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react'
 import type { SidebarData } from '@/lib/maps/sidebarControls'
-import { fetchNearbyPlaces, formatPriceLevel } from '@/lib/places/nearbySearch'
+import { fetchNearbyPlacesOrThrow, formatPriceLevel } from '@/lib/places/nearbySearch'
 import type { NearbyPlace, PlaceCategory } from '@/lib/places/nearbySearch'
 
 interface SidebarProps {
   visible: boolean
+  requestId: number
   data: SidebarData | null
   category: PlaceCategory
   onClose: () => void
   onPlaceStreetView: (lat: number, lng: number) => void
+  onPlacesReady?: (
+    requestId: number,
+    category: PlaceCategory,
+    data: SidebarData,
+    places: NearbyPlace[]
+  ) => void
+  onPlacesError?: (requestId: number, errorMessage: string) => void
 }
 
 const SHIMMER_CSS = `
@@ -21,13 +29,23 @@ const SHIMMER_CSS = `
 }
 `
 
-export function Sidebar({ visible, data, category, onClose, onPlaceStreetView }: SidebarProps) {
+export function Sidebar({
+  visible,
+  requestId,
+  data,
+  category,
+  onClose,
+  onPlaceStreetView,
+  onPlacesReady,
+  onPlacesError,
+}: SidebarProps) {
   // Internal category lags behind prop — swaps after fade-out completes
   const [activeCategory, setActiveCategory] = useState<PlaceCategory>(category)
   const [fading, setFading] = useState(false)
   const [places, setPlaces] = useState<NearbyPlace[]>([])
   const [loading, setLoading] = useState(false)
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestFetchIdRef = useRef(0)
 
   // Fade out → swap category → fade in
   useEffect(() => {
@@ -44,15 +62,48 @@ export function Sidebar({ visible, data, category, onClose, onPlaceStreetView }:
 
   // Fetch whenever location or active category changes
   useEffect(() => {
-    if (!data?.lat || !data?.lng) return
+    if (!visible || !data?.lat || !data?.lng) return
     const { lat, lng } = data
+    let cancelled = false
+    const fetchId = ++latestFetchIdRef.current
     setLoading(true)
     setPlaces([])
-    fetchNearbyPlaces(lat, lng, activeCategory).then(results => {
+    void fetchNearbyPlacesOrThrow(lat, lng, activeCategory).then(results => {
+      if (cancelled || fetchId !== latestFetchIdRef.current) {
+        return
+      }
       setPlaces(results)
       setLoading(false)
+      if (visible && requestId > 0 && data) {
+        onPlacesReady?.(requestId, activeCategory, data, results)
+      }
+    }).catch((error) => {
+      if (cancelled || fetchId !== latestFetchIdRef.current) {
+        return
+      }
+      setPlaces([])
+      setLoading(false)
+      const message = error instanceof Error
+        ? error.message
+        : 'Unable to fetch nearby places right now.'
+      if (visible && requestId > 0) {
+        onPlacesError?.(requestId, message)
+      }
     })
-  }, [data?.lat, data?.lng, activeCategory])
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    data,
+    data?.lat,
+    data?.lng,
+    activeCategory,
+    onPlacesError,
+    onPlacesReady,
+    requestId,
+    visible,
+  ])
 
   const glass: React.CSSProperties = {
     position: 'fixed',

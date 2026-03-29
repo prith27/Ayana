@@ -35,11 +35,17 @@ import { AyanaRuntimeWidget } from '@/components/map/AyanaRuntimeWidget'
 import {
   activateCity,
   activateLandmark,
+  openPlaceStreetView,
+  showNearby,
   type CityActivationInput,
   type LandmarkActivationInput,
   type LandmarkActivationResult,
+  type OpenPlaceStreetViewResult,
   type OverlayPreset,
+  type ShowNearbyResult,
 } from '@/lib/ayana/runtime'
+import type { PlaceCategory } from '@/lib/places/nearbySearch'
+import type { SidebarData } from '@/lib/maps/sidebarControls'
 
 type Stage =
   | 'selectingPersona'
@@ -69,6 +75,14 @@ interface MoveToLandmarkExecutionRequest {
   landmarkName: string
   overlayPreset: OverlayPreset
   tagline: string
+}
+
+interface ShowNearbyExecutionRequest {
+  category: PlaceCategory
+}
+
+interface OpenPlaceStreetViewExecutionRequest {
+  placeName: string
 }
 
 function PersonaBadge({ type, visible }: { type: Persona; visible: boolean }) {
@@ -497,6 +511,26 @@ export default function LandingPage() {
     }
   }
 
+  async function executeShowNearby(
+    request: ShowNearbyExecutionRequest
+  ): Promise<ShowNearbyResult> {
+    const sidebarData = buildSidebarDataForRuntimeLocation(currentRuntimeLocation)
+    if (!sidebarData) {
+      throw new Error('Move to a city or landmark before opening nearby discovery.')
+    }
+
+    return showNearby({
+      category: request.category,
+      sidebarData,
+    })
+  }
+
+  async function executeOpenPlaceStreetView(
+    request: OpenPlaceStreetViewExecutionRequest
+  ): Promise<OpenPlaceStreetViewResult> {
+    return openPlaceStreetView(request.placeName)
+  }
+
   return (
     <main className="relative flex h-screen items-center justify-center bg-black overflow-hidden">
       {LIVE_AGENT_ENABLED && persona && prepResponse && (
@@ -505,6 +539,8 @@ export default function LandingPage() {
           prepResponse={prepResponse}
           onChooseItineraryAction={executeItineraryActivation}
           onMoveToLandmarkAction={executeLandmarkActivation}
+          onShowNearbyAction={executeShowNearby}
+          onOpenPlaceStreetViewAction={executeOpenPlaceStreetView}
           audioPlayerResources={audioPlayerResources}
           onSessionBootstrapped={() => {
             if (itineraryRevealTimerRef.current) {
@@ -738,6 +774,31 @@ function buildCityActivationInput(
     countryName: itinerary.country_name,
     overlayPreset,
     tagline,
+  }
+}
+
+function buildSidebarDataForRuntimeLocation(
+  runtimeLocation: {
+    locationName: string
+    locationSub: string
+    lat: number
+    lng: number
+    sceneIndex: number
+    sceneTotal: number
+  } | null
+): SidebarData | null {
+  if (!runtimeLocation) {
+    return null
+  }
+
+  return {
+    locationName: runtimeLocation.locationName,
+    locationSub: runtimeLocation.locationSub,
+    tags: [],
+    sceneIndex: runtimeLocation.sceneIndex,
+    sceneTotal: runtimeLocation.sceneTotal,
+    lat: runtimeLocation.lat,
+    lng: runtimeLocation.lng,
   }
 }
 

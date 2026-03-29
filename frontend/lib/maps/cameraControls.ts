@@ -205,20 +205,39 @@ export async function tiltDown(): Promise<{ ok: boolean }> {
 }
 
 // ── Street View bridge ───────────────────────────────────────────────────────
-// Register the StreetViewOverlay enter function from CameraWidget so that
-// flyToPlaceStreetView can open Street View without a direct React ref dependency.
+// Register the StreetViewOverlay enter/exit functions from the widget layer so
+// map runtime helpers can control Street View without a direct React ref dependency.
 
 let _svEnter: ((lat: number, lng: number) => Promise<void>) | null = null
+let _svExit: (() => void | Promise<void>) | null = null
 
 export function registerSVEnter(fn: (lat: number, lng: number) => Promise<void>): void {
   _svEnter = fn
+}
+
+export function registerSVExit(fn: () => void | Promise<void>): void {
+  _svExit = fn
+}
+
+export async function exitStreetView(): Promise<{ ok: boolean }> {
+  if (!_svExit) {
+    return { ok: true }
+  }
+  await _svExit()
+  return { ok: true }
 }
 
 // ── Fly to a nearby POI then drop into Street View ───────────────────────────
 
 export async function flyToPlaceStreetView(lat: number, lng: number): Promise<{ ok: boolean }> {
   console.log('[cam] flyToPlaceStreetView', { lat, lng })
-  await navigateToLocation(lat, lng, 400)
-  await _svEnter?.(lat, lng)
+  const navigation = await navigateToLocation(lat, lng, 400)
+  if (!navigation.ok) {
+    throw new Error('Map is not ready yet.')
+  }
+  if (!_svEnter) {
+    throw new Error('Street View is not ready on this client.')
+  }
+  await _svEnter(lat, lng)
   return { ok: true }
 }

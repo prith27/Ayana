@@ -158,10 +158,12 @@ export const StreetViewOverlay = forwardRef<StreetViewOverlayHandle, Props>(
           console.log('[StreetView] ZERO_RESULTS — no coverage within 100m', err)
           setError('No Street View coverage at this location')
           setVisible(true)
-          return
+          throw new Error('No Street View coverage at this location')
         }
 
-        if (!containerRef.current) return
+        if (!containerRef.current) {
+          throw new Error('Street View container is not ready.')
+        }
 
         // panoramaRef is always null here because exit() nulls it on teardown.
         // We always create a fresh instance so body-level Maps elements are clean.

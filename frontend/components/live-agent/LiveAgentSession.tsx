@@ -6,6 +6,7 @@ import type { AyanaPrepResponse, Persona } from '@/lib/ayana/prep'
 import {
   OVERLAY_PRESET_OPTIONS,
   type OverlayPreset,
+  type OpenPlaceStreetViewResult,
 } from '@/lib/ayana/runtime'
 import {
   base64ToArray,
@@ -27,8 +28,11 @@ import {
   type FrontendAction,
   type FrontendAck,
   type MoveToLandmarkActionPayload,
+  type OpenPlaceStreetViewActionPayload,
+  type ShowNearbyActionPayload,
   type ToolResult,
 } from '@/lib/live-agent/protocol'
+import type { PlaceCategory } from '@/lib/places/nearbySearch'
 
 interface ChooseItineraryActionResult {
   itineraryId: string
@@ -46,6 +50,21 @@ interface MoveToLandmarkActionResult {
   lng: number
   overlayPreset: OverlayPreset
   tagline: string
+}
+
+interface ShowNearbyActionResult {
+  category: PlaceCategory
+  locationName: string
+  locationSub: string
+  places: Array<{
+    name: string
+    rating: number | null
+    userRatingCount: number | null
+    types: string[]
+    address: string | null
+    lat: number
+    lng: number
+  }>
 }
 
 interface LiveAgentSessionProps {
@@ -67,6 +86,14 @@ interface LiveAgentSessionProps {
       tagline: string
     }
   ) => Promise<MoveToLandmarkActionResult>
+  onShowNearbyAction: (
+    request: {
+      category: PlaceCategory
+    }
+  ) => Promise<ShowNearbyActionResult>
+  onOpenPlaceStreetViewAction: (request: {
+    placeName: string
+  }) => Promise<OpenPlaceStreetViewResult>
 }
 
 interface LiveAgentEventPart {
@@ -105,6 +132,8 @@ export function LiveAgentSession({
   onSessionBootstrapped,
   onChooseItineraryAction,
   onMoveToLandmarkAction,
+  onShowNearbyAction,
+  onOpenPlaceStreetViewAction,
 }: LiveAgentSessionProps) {
   const websocketRef = useRef<WebSocket | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -115,6 +144,8 @@ export function LiveAgentSession({
   const playerRef = useRef<AudioPlayerResources | null>(audioPlayerResources)
   const chooseItineraryActionRef = useRef(onChooseItineraryAction)
   const moveToLandmarkActionRef = useRef(onMoveToLandmarkAction)
+  const showNearbyActionRef = useRef(onShowNearbyAction)
+  const openPlaceStreetViewActionRef = useRef(onOpenPlaceStreetViewAction)
   const bootstrappedSessionRef = useRef<string | null>(null)
   const shouldReconnectRef = useRef(false)
   const frontendActionQueueRef = useRef<FrontendAction[]>([])
@@ -129,6 +160,14 @@ export function LiveAgentSession({
   useEffect(() => {
     moveToLandmarkActionRef.current = onMoveToLandmarkAction
   }, [onMoveToLandmarkAction])
+
+  useEffect(() => {
+    showNearbyActionRef.current = onShowNearbyAction
+  }, [onShowNearbyAction])
+
+  useEffect(() => {
+    openPlaceStreetViewActionRef.current = onOpenPlaceStreetViewAction
+  }, [onOpenPlaceStreetViewAction])
 
   useEffect(() => {
     playerRef.current = audioPlayerResources
@@ -418,6 +457,115 @@ export function LiveAgentSession({
       return
     }
 
+    if (action.action_type === 'ayana.show_nearby') {
+      const payload = parseShowNearbyActionPayload(action.payload)
+      if (!payload) {
+        await sendFrontendAck({
+          status: 'failed',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary: 'Invalid ayana.show_nearby payload from backend.',
+        })
+        return
+      }
+
+      try {
+        const result = await showNearbyActionRef.current({
+          category: payload.category,
+        })
+        await sendImageBeforeAck(action.job_id, result.locationName)
+        await sendFrontendAck({
+          status: 'applied',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary: `${capitalizeCategory(result.category)} sidebar opened with ${result.places.length} nearby places around ${result.locationName}.`,
+          payload: {
+            category: result.category,
+            city_name: payload.city_name,
+            country_name: payload.country_name,
+            landmark_name: payload.landmark_name,
+            location_name: result.locationName,
+            location_sub: result.locationSub,
+            places: result.places.map((place) => ({
+              name: place.name,
+              rating: place.rating,
+              user_rating_count: place.userRatingCount,
+              types: place.types,
+              address: place.address,
+              lat: place.lat,
+              lng: place.lng,
+            })),
+          },
+        })
+      } catch (error) {
+        const summary = error instanceof Error
+          ? error.message
+          : 'Unable to apply ayana.show_nearby.'
+        await sendFrontendAck({
+          status: 'failed',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary,
+        })
+      }
+      return
+    }
+
+    if (action.action_type === 'ayana.open_place_street_view') {
+      const payload = parseOpenPlaceStreetViewActionPayload(action.payload)
+      if (!payload) {
+        await sendFrontendAck({
+          status: 'failed',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary: 'Invalid ayana.open_place_street_view payload from backend.',
+        })
+        return
+      }
+
+      try {
+        const result = await openPlaceStreetViewActionRef.current({
+          placeName: payload.place_name,
+        })
+        await sendImageBeforeAck(action.job_id, result.placeName)
+        await sendFrontendAck({
+          status: 'applied',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary: `Street View opened for ${result.placeName}.`,
+          payload: {
+            category: result.category,
+            location_name: result.locationName,
+            location_sub: result.locationSub,
+            place_name: result.placeName,
+            address: result.address,
+            rating: result.rating,
+            user_rating_count: result.userRatingCount,
+            types: result.types,
+            lat: result.lat,
+            lng: result.lng,
+          },
+        })
+      } catch (error) {
+        const summary = error instanceof Error
+          ? error.message
+          : 'Unable to apply ayana.open_place_street_view.'
+        await sendFrontendAck({
+          status: 'failed',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary,
+        })
+      }
+      return
+    }
+
     await sendFrontendAck({
       status: 'failed',
       action_type: action.action_type,
@@ -439,14 +587,14 @@ export function LiveAgentSession({
 
   async function sendImageBeforeAck(
     jobId: string,
-    cityName: string
+    sceneLabel: string
   ): Promise<void> {
     const socket = websocketRef.current
     if (socket?.readyState !== WebSocket.OPEN) {
       throw new Error('Live socket is not open for screenshot upload.')
     }
 
-    const imageDataUrl = await captureViewportImage(cityName)
+    const imageDataUrl = await captureViewportImage(sceneLabel)
     const [, base64Payload = ''] = imageDataUrl.split(',', 2)
     socket.send(JSON.stringify({
       type: 'image',
@@ -610,6 +758,50 @@ function parseMoveToLandmarkActionPayload(
   }
 }
 
+function parseShowNearbyActionPayload(
+  payload: Record<string, unknown>
+): ShowNearbyActionPayload | null {
+  const category = payload.category
+  const cityName = payload.city_name
+  const countryName = payload.country_name
+  const landmarkName = payload.landmark_name
+
+  if (
+    category !== 'food' &&
+    category !== 'shopping' &&
+    category !== 'activities'
+  ) {
+    return null
+  }
+
+  if (cityName !== undefined && typeof cityName !== 'string') {
+    return null
+  }
+  if (countryName !== undefined && typeof countryName !== 'string') {
+    return null
+  }
+  if (landmarkName !== undefined && typeof landmarkName !== 'string') {
+    return null
+  }
+
+  return {
+    category,
+    city_name: cityName,
+    country_name: countryName,
+    landmark_name: landmarkName,
+  }
+}
+
+function parseOpenPlaceStreetViewActionPayload(
+  payload: Record<string, unknown>
+): OpenPlaceStreetViewActionPayload | null {
+  const placeName = payload.place_name
+  if (typeof placeName !== 'string' || !placeName.trim()) {
+    return null
+  }
+  return { place_name: placeName.trim() }
+}
+
 function buildPrepFingerprint(
   persona: Persona,
   prepResponse: AyanaPrepResponse
@@ -626,7 +818,7 @@ function buildPrepFingerprint(
   })
 }
 
-async function captureViewportImage(cityName: string): Promise<string> {
+async function captureViewportImage(sceneLabel: string): Promise<string> {
   try {
     const canvas = await html2canvas(document.body, {
       backgroundColor: '#000000',
@@ -637,11 +829,11 @@ async function captureViewportImage(cityName: string): Promise<string> {
     return canvas.toDataURL('image/png')
   } catch (error) {
     console.warn('[live-agent] html2canvas capture failed, using fallback', error)
-    return buildFallbackImage(cityName)
+    return buildFallbackImage(sceneLabel)
   }
 }
 
-function buildFallbackImage(cityName: string): string {
+function buildFallbackImage(sceneLabel: string): string {
   const canvas = document.createElement('canvas')
   canvas.width = 1280
   canvas.height = 720
@@ -663,7 +855,7 @@ function buildFallbackImage(cityName: string): string {
 
   context.fillStyle = 'rgba(255,255,255,0.7)'
   context.font = '500 44px system-ui'
-  context.fillText(cityName, 96, 250)
+  context.fillText(sceneLabel, 96, 250)
 
   context.strokeStyle = 'rgba(255,255,255,0.18)'
   context.lineWidth = 2
@@ -674,4 +866,8 @@ function buildFallbackImage(cityName: string): string {
   context.fillText('Cinematic transition completed on frontend', 96, 324)
 
   return canvas.toDataURL('image/png')
+}
+
+function capitalizeCategory(category: PlaceCategory): string {
+  return category.charAt(0).toUpperCase() + category.slice(1)
 }

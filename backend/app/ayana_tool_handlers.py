@@ -8,10 +8,14 @@ from ayana_orchestration import (
     get_active_city_context,
     get_pending_job,
     mark_current_landmark,
+    mark_nearby_places,
     mark_selected_itinerary,
+    mark_street_view_opened,
     resolve_itinerary,
     resolve_selected_itinerary,
 )
+
+DEFAULT_CITY_LABEL = "this city"
 
 
 def build_post_ack_followup(
@@ -26,6 +30,10 @@ def build_post_ack_followup(
         return _build_choose_itinerary_followup(session_id, ack)
     if action_type == "ayana.move_to_landmark":
         return _build_move_to_landmark_followup(session_id, ack)
+    if action_type == "ayana.show_nearby":
+        return _build_show_nearby_followup(session_id, ack)
+    if action_type == "ayana.open_place_street_view":
+        return _build_open_place_street_view_followup(session_id, ack)
     return None
 
 
@@ -48,7 +56,7 @@ def _build_choose_itinerary_followup(
 
     mark_selected_itinerary(session_id, itinerary=itinerary)
 
-    city_name = itinerary.get("city_name", "this city")
+    city_name = itinerary.get("city_name", DEFAULT_CITY_LABEL)
     country_name = itinerary.get("country_name", "")
     title = itinerary.get("title", "")
     landmark_names = [
@@ -99,7 +107,7 @@ def _build_move_to_landmark_followup(
         ack_payload,
         active_city,
         "city_name",
-        default="this city",
+        default=DEFAULT_CITY_LABEL,
     )
     country_name = _string_from_ack_or_context(
         ack_payload,
@@ -123,6 +131,102 @@ def _build_move_to_landmark_followup(
         "details about this landmark, and naturally offer the next exploration beat "
         "within the same city context."
         f"{grounding_suffix}"
+    ).strip()
+
+
+def _build_show_nearby_followup(
+    session_id: str, ack: dict[str, Any]
+) -> str | None:
+    """Build post-ACK semantic guidance for nearby discovery."""
+    ack_payload = ack.get("payload")
+    if not isinstance(ack_payload, dict):
+        return None
+
+    category = ack_payload.get("category")
+    if not isinstance(category, str) or not category.strip():
+        return None
+
+    raw_places = ack_payload.get("places", [])
+    if not isinstance(raw_places, list):
+        return None
+
+    places = [place for place in raw_places if isinstance(place, dict)]
+    mark_nearby_places(
+        session_id,
+        category=category.strip(),
+        places=places,
+    )
+
+    active_city = get_active_city_context(session_id)
+    city_name = _string_from_ack_or_context(
+        ack_payload,
+        active_city or {},
+        "city_name",
+        default=DEFAULT_CITY_LABEL,
+    )
+    landmark_name = str(ack_payload.get("landmark_name", "")).strip()
+    screenshot_note = _build_screenshot_note(session_id, ack)
+
+    if not places:
+        return (
+            f"{screenshot_note}The nearby {category.strip()} sidebar is now visibly "
+            f"open around {landmark_name or city_name}, but no strong options were "
+            "returned. Continue as Ayana by acknowledging that nothing compelling is "
+            "showing right here and ask whether the user wants a different category "
+            "or a different nearby area."
+        ).strip()
+
+    place_names = _extract_place_names(places)
+    place_summary = ", ".join(place_names[:3])
+    return (
+        f"{screenshot_note}The nearby {category.strip()} sidebar is now visibly open "
+        f"around {landmark_name or city_name}. The returned options include "
+        f"{place_summary}. Continue as Ayana by briefly grounding the user in these "
+        "visible options, mention concrete details like rating, reviews, type, or "
+        "address when helpful, and ask which of these places they would like to "
+        "explore next."
+    ).strip()
+
+
+def _build_open_place_street_view_followup(
+    session_id: str, ack: dict[str, Any]
+) -> str | None:
+    """Build post-ACK guidance after Street View opens successfully."""
+    ack_payload = ack.get("payload")
+    if not isinstance(ack_payload, dict):
+        return None
+
+    place_name = ack_payload.get("place_name")
+    if not isinstance(place_name, str) or not place_name.strip():
+        return None
+
+    lat = ack_payload.get("lat")
+    lng = ack_payload.get("lng")
+    if not isinstance(lat, (int, float)) or not isinstance(lng, (int, float)):
+        return None
+
+    mark_street_view_opened(
+        session_id,
+        place=dict(ack_payload),
+    )
+
+    screenshot_note = _build_screenshot_note(session_id, ack)
+    category = str(ack_payload.get("category", "")).strip()
+    address = str(ack_payload.get("address", "")).strip()
+
+    detail_bits: list[str] = []
+    if category:
+        detail_bits.append(f"Category context: {category}.")
+    if address:
+        detail_bits.append(f"Address on record: {address}.")
+    detail_suffix = f" {' '.join(detail_bits)}" if detail_bits else ""
+
+    return (
+        f"{screenshot_note}Street View for {place_name.strip()} is now visibly open. "
+        f"Continue as Ayana with a grounded, immersive reaction to what the user sees "
+        f"in this panorama—reference the scene naturally and offer a sensible next beat "
+        f"(nearby stop, different angle, or back to the map) without inventing coverage "
+        f"that is not there.{detail_suffix}"
     ).strip()
 
 
@@ -193,3 +297,13 @@ def _build_landmark_grounding_suffix(
     if not grounding_bits:
         return ""
     return f" {' '.join(grounding_bits)}"
+
+
+def _extract_place_names(places: list[dict[str, Any]]) -> list[str]:
+    """Return displayable nearby place names from ACK payload data."""
+    names: list[str] = []
+    for place in places:
+        place_name = place.get("name")
+        if isinstance(place_name, str) and place_name.strip():
+            names.append(place_name.strip())
+    return names

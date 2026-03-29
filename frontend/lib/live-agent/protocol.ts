@@ -7,7 +7,6 @@ export type FrontendActionType =
   | 'ayana.choose_itinerary'
   | 'ayana.move_to_landmark'
   | 'ayana.show_nearby'
-  | 'ayana.hide_sidebar'
   | 'ayana.open_place_street_view'
 
 export interface ToolResult {
@@ -48,6 +47,41 @@ export interface MoveToLandmarkActionPayload extends Record<string, unknown> {
   landmark_name: string
   overlay_preset: OverlayPreset
   tagline: string
+}
+
+export interface ShowNearbyActionPayload extends Record<string, unknown> {
+  category: 'food' | 'shopping' | 'activities'
+  city_name?: string
+  country_name?: string
+  landmark_name?: string
+}
+
+export interface OpenPlaceStreetViewActionPayload extends Record<string, unknown> {
+  place_name: string
+}
+
+/** Fields sent on successful `ayana.open_place_street_view` frontend_ack.payload */
+export interface OpenPlaceStreetViewAckPayload extends Record<string, unknown> {
+  category: string
+  location_name: string
+  location_sub: string
+  place_name: string
+  address: string | null
+  rating: number | null
+  user_rating_count: number | null
+  types: string[]
+  lat: number
+  lng: number
+}
+
+export interface NearbyPlaceAckPayload extends Record<string, unknown> {
+  name: string
+  rating: number | null
+  user_rating_count: number | null
+  types: string[]
+  address: string | null
+  lat: number
+  lng: number
 }
 
 export interface FrontendActionMessage {

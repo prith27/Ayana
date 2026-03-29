@@ -29,6 +29,48 @@ For each tool, the full slice should be completed before moving to the next one:
 
 ---
 
+## Progress Snapshot
+
+This phase plan is now partially complete.
+
+### Completed phases
+
+- Phase 0 — Transport And Session Backbone
+- Phase 1 — `choose_itinerary`
+- Phase 2 — `move_to_landmark`
+- Phase 3 — `show_nearby`
+- Phase 4 — `open_place_street_view`
+
+### Current next phase
+
+- Phase 5 — Silence Continuation Layer
+
+### Remaining phases
+
+- Phase 5 — Silence Continuation Layer
+- Phase 6 — End-to-End Orchestration Validation
+
+### Deferred (not on the live tool surface for now)
+
+- explicit `hide_sidebar` tool — the sidebar is closed implicitly when entering Street View (and similar flows) instead
+
+### Current live behavior before Phase 5
+
+- prep-first live session boot is implemented
+- itinerary grounding via backend-owned `prep_id` is implemented
+- city activation is agent-callable and ACK-gated
+- landmark activation is agent-callable and ACK-gated
+- nearby discovery is agent-callable and ACK-gated
+- Street View entry for a nearby place is agent-callable and ACK-gated (screenshot-first, then ACK)
+- accepted-phase movement narration is now intentionally short and waits for ACK before real scene description
+
+### Known stabilization work to keep in mind
+
+- websocket disconnect handling should be cleaned up before final validation
+- barge-in and interruption handling should be validated against the static ADK demo behavior
+
+---
+
 ## Phase 0 — Transport And Session Backbone
 
 ### Goal
@@ -82,6 +124,10 @@ Establish the shared orchestration transport and state backbone before adding th
 - session director state shape is defined
 - no second transport path is introduced
 
+### Status
+
+Completed.
+
 ---
 
 ## Phase 1 — `choose_itinerary` End-to-End
@@ -118,6 +164,10 @@ Everything else depends on a real selected itinerary and current city state.
 - live agent can choose one generated itinerary
 - frontend executes the existing city activation handler through a websocket action
 - backend updates selected itinerary and current city state only after ACK
+
+### Status
+
+Completed.
 
 ---
 
@@ -161,6 +211,10 @@ This is the core movement continuation after city choice.
 - free-text landmark input is grounded by the active city and country
 - the same cinematic landmark flow used in the frontend primitives is preserved
 
+### Status
+
+Completed.
+
 ---
 
 ## Phase 3 — `show_nearby` End-to-End
@@ -200,43 +254,13 @@ This creates the discovery context needed for Street View.
 - agent receives compact nearby place names it can reference
 - session state stores the current nearby result set
 
----
+### Status
 
-## Phase 4 — `hide_sidebar` End-to-End
-
-### Goal
-
-Allow the agent to close nearby discovery cleanly.
-
-### Scope
-
-- define final empty tool schema
-- define accepted semantic guidance
-- define `ayana.hide_sidebar` frontend action payload
-- define simple ACK payload
-- define post-ACK semantic guidance
-
-### Expected behavior
-
-1. agent calls `hide_sidebar`
-2. backend returns `accepted`
-3. backend sends `frontend_action`
-4. frontend hides sidebar
-5. frontend ACKs success or failure
-6. backend updates sidebar state and sends follow-up semantic guidance only if appropriate
-
-### Why fourth
-
-This is simple, but completes the discovery control loop.
-
-### Exit criteria
-
-- sidebar open/closed state can be agent-controlled
-- backend state stays aligned with visible sidebar state
+Completed.
 
 ---
 
-## Phase 5 — `open_place_street_view` End-to-End
+## Phase 4 — `open_place_street_view` End-to-End
 
 ### Goal
 
@@ -244,26 +268,24 @@ Let the agent open Street View for one of the currently discovered nearby places
 
 ### Scope
 
-- define final tool schema:
-  - `place_name`
-- define accepted semantic guidance
-- define `ayana.open_place_street_view` frontend action payload
-- define ACK payload for success/failure
-- define post-ACK semantic guidance
+- tool schema: `open_place_street_view(place_name)` (must match stored `nearby_places` after trim + case-folding)
+- accepted semantic guidance (one short transition line, then wait)
+- `ayana.open_place_street_view` frontend action payload: `{ place_name }`
+- ACK payload with place + scene metadata; failures when there is no Street View coverage
+- post-ACK semantic guidance for immersive narration
+- sidebar closes implicitly on the frontend when entering Street View (no separate `hide_sidebar` live tool)
 
 ### Expected behavior
 
 1. agent calls `open_place_street_view(place_name)`
 2. backend validates that `place_name` exists in the latest nearby result set
-3. backend returns `accepted`
-4. accepted semantic narrates entry into the immersive view
-5. backend sends `frontend_action`
-6. frontend runs the existing Street View path for that place
-7. frontend ACKs when Street View is visibly open or reports failure
-8. frontend sends screenshot / visual grounding if needed
-9. backend sends post-ACK semantic guidance allowing the agent to react to the immersive view
+3. backend returns `accepted` and sends `frontend_action`
+4. frontend resolves the place from cached nearby results, hides the sidebar, runs `flyToPlaceStreetView`
+5. on success: screenshot first, then `frontend_ack` with `status=applied` and grounded place fields
+6. on no coverage or runtime error: `frontend_ack` with `status=failed`
+7. backend updates `street_view_visible` / `current_street_view_place` only after a successful ACK; keeps `nearby_places` intact
 
-### Why fifth
+### Why fourth
 
 This depends on nearby discovery being implemented and stored in session state.
 
@@ -271,11 +293,15 @@ This depends on nearby discovery being implemented and stored in session state.
 
 - agent can open Street View for a place returned by `show_nearby`
 - backend validates place selection against current nearby context
-- street-view state is reflected in session state if needed
+- no-coverage paths surface as failed ACKs, not fake success
+
+### Status
+
+Completed.
 
 ---
 
-## Phase 6 — Silence Continuation Layer
+## Phase 5 — Silence Continuation Layer
 
 ### Goal
 
@@ -302,9 +328,13 @@ Add the lightweight continuation behavior without introducing a second-brain mod
 - the agent can continue naturally after brief silence
 - continuation does not race with tool execution or visible state confirmation
 
+### Status
+
+Pending.
+
 ---
 
-## Phase 7 — End-to-End Orchestration Validation
+## Phase 6 — End-to-End Orchestration Validation
 
 ### Goal
 
@@ -315,10 +345,9 @@ Verify that the live agent, tool loop, frontend action execution, ACK flow, and 
 1. itinerary selection
 2. landmark movement
 3. nearby discovery
-4. sidebar hide
-5. street-view opening
-6. silence continuation after normal narration
-7. failure handling for geocoding or frontend application failure
+4. street-view opening (including failed ACK on no coverage)
+5. silence continuation after normal narration
+6. failure handling for geocoding or frontend application failure
 
 ### Validation focus
 
@@ -333,6 +362,10 @@ Verify that the live agent, tool loop, frontend action execution, ACK flow, and 
 - the full live orchestration loop works on top of the runtime primitives
 - the agent reasons from ACKed visible state instead of backend intent
 
+### Status
+
+Pending.
+
 ---
 
 ## Recommended Build Order
@@ -343,10 +376,11 @@ Implement in this exact order:
 2. `choose_itinerary`
 3. `move_to_landmark`
 4. `show_nearby`
-5. `hide_sidebar`
-6. `open_place_street_view`
-7. silence continuation
-8. end-to-end validation
+5. `open_place_street_view`
+6. silence continuation
+7. end-to-end validation
+
+Note: an explicit `hide_sidebar` tool remains out of scope for the live surface for now; sidebars are dismissed as part of flows like Street View entry.
 
 ---
 

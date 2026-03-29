@@ -25,8 +25,10 @@ class AyanaSessionState:
     current_city: dict[str, Any] | None = None
     current_landmark: dict[str, Any] | None = None
     nearby_places: list[dict[str, Any]] = field(default_factory=list)
+    nearby_category: str | None = None
     sidebar_visible: bool = False
     street_view_visible: bool = False
+    current_street_view_place: dict[str, Any] | None = None
     pending_jobs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -303,8 +305,10 @@ def mark_selected_itinerary(
     }
     state.current_landmark = None
     state.nearby_places = []
+    state.nearby_category = None
     state.sidebar_visible = False
     state.street_view_visible = False
+    state.current_street_view_place = None
 
 
 def mark_current_landmark(
@@ -329,8 +333,37 @@ def mark_current_landmark(
         "tagline": landmark.get("tagline"),
     }
     state.nearby_places = []
+    state.nearby_category = None
     state.sidebar_visible = False
     state.street_view_visible = False
+    state.current_street_view_place = None
+
+
+def mark_nearby_places(
+    session_id: str,
+    *,
+    category: str,
+    places: list[dict[str, Any]],
+) -> None:
+    """Persist the current nearby discovery result set after visible completion."""
+    state = get_or_create_session_state(session_id)
+    state.nearby_category = category
+    state.nearby_places = places
+    state.sidebar_visible = True
+    state.street_view_visible = False
+    state.current_street_view_place = None
+
+
+def mark_street_view_opened(
+    session_id: str,
+    *,
+    place: dict[str, Any],
+) -> None:
+    """Persist Street View immersion after the frontend ACK confirms visible entry."""
+    state = get_or_create_session_state(session_id)
+    state.current_street_view_place = place
+    state.street_view_visible = True
+    state.sidebar_visible = False
 
 
 def get_pending_job(

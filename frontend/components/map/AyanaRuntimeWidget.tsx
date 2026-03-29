@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   cityView,
   flyInWithOrbit,
@@ -9,6 +9,7 @@ import {
   orbit,
   overviewPullback,
   registerSVEnter,
+  registerSVExit,
   stopAnimation,
   tiltDown,
   tiltUp,
@@ -27,12 +28,14 @@ import {
 import {
   hideSidebar,
   registerSidebarSetters,
+  reportSidebarError,
+  reportSidebarResults,
   setAgentIdle,
   setAgentSpeaking,
   showCategorySidebar,
   type SidebarData,
 } from '@/lib/maps/sidebarControls'
-import type { PlaceCategory } from '@/lib/places/nearbySearch'
+import type { NearbyPlace, PlaceCategory } from '@/lib/places/nearbySearch'
 
 interface RuntimeLocation {
   locationName: string
@@ -72,6 +75,7 @@ export function AyanaRuntimeWidget({
   const [sidebarVisible, setSidebarVisible] = useState(false)
   const [sidebarData, setSidebarData] = useState<SidebarData | null>(null)
   const [sidebarCategory, setSidebarCategory] = useState<PlaceCategory>('food')
+  const [sidebarRequestId, setSidebarRequestId] = useState(0)
   const svRef = useRef<StreetViewOverlayHandle>(null)
 
   useEffect(() => {
@@ -79,10 +83,15 @@ export function AyanaRuntimeWidget({
       setVisible: setSidebarVisible,
       setData: setSidebarData,
       setCategory: setSidebarCategory,
+      setRequestId: setSidebarRequestId,
     })
     const enterStreetView = (lat: number, lng: number) =>
       svRef.current?.enter(lat, lng) ?? Promise.resolve()
+    const exitStreetView = () => {
+      svRef.current?.exit()
+    }
     registerSVEnter(enterStreetView)
+    registerSVExit(exitStreetView)
   }, [])
 
   const btn = (
@@ -134,6 +143,27 @@ export function AyanaRuntimeWidget({
     setInStreetView(true)
   }
 
+  const handlePlacesReady = useCallback((
+    requestId: number,
+    category: PlaceCategory,
+    data: SidebarData,
+    places: NearbyPlace[]
+  ) => {
+    reportSidebarResults({
+      requestId,
+      category,
+      data,
+      places,
+    })
+  }, [])
+
+  const handlePlacesError = useCallback((
+    requestId: number,
+    errorMessage: string
+  ) => {
+    reportSidebarError(requestId, errorMessage)
+  }, [])
+
   return (
     <>
       <GestureMapAdapter
@@ -152,13 +182,16 @@ export function AyanaRuntimeWidget({
 
       <Sidebar
         visible={sidebarVisible}
+        requestId={sidebarRequestId}
         data={sidebarData}
         category={sidebarCategory}
-        onClose={() => setSidebarVisible(false)}
+        onClose={() => hideSidebar()}
         onPlaceStreetView={(lat, lng) => {
           setInStreetView(true)
           void flyToPlaceStreetView(lat, lng)
         }}
+        onPlacesReady={handlePlacesReady}
+        onPlacesError={handlePlacesError}
       />
 
       {!inStreetView && (

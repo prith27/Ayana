@@ -1,7 +1,18 @@
-import { navigateToLocation } from '@/lib/maps/cameraControls'
+import {
+  exitStreetView,
+  flyToPlaceStreetView,
+  navigateToLocation,
+} from '@/lib/maps/cameraControls'
 import { calcArrivalRange } from '@/lib/maps/smartRange'
 import { buildCityGeocodeQuery, geocodePlaceQuery } from '@/lib/maps/geocoding'
 import { EXIT_MS, HOLD_MS, LETTER_MS, TAGLINE_DELAY_MS } from '@/components/map/CityOverlay'
+import {
+  getLatestNearbyResult,
+  hideSidebar,
+  openCategorySidebar,
+  type SidebarData,
+} from '@/lib/maps/sidebarControls'
+import type { NearbyPlace, PlaceCategory } from '@/lib/places/nearbySearch'
 
 export type OverlayPreset =
   | 'urban-neon'
@@ -75,9 +86,35 @@ export interface LandmarkOverlayPayload {
   tagline: string
 }
 
+export interface ShowNearbyInput {
+  category: PlaceCategory
+  sidebarData: SidebarData
+}
+
+export interface ShowNearbyResult {
+  category: PlaceCategory
+  locationName: string
+  locationSub: string
+  places: NearbyPlace[]
+}
+
+export interface OpenPlaceStreetViewResult {
+  category: PlaceCategory
+  locationName: string
+  locationSub: string
+  placeName: string
+  address: string | null
+  rating: number | null
+  userRatingCount: number | null
+  types: string[]
+  lat: number
+  lng: number
+}
+
 export async function activateCity(
   input: CityActivationInput
 ): Promise<CityActivationResult> {
+  await exitStreetView()
   const placeQuery = buildCityGeocodeQuery(input.cityName, input.countryName)
   const resolvedPlace = await geocodePlaceQuery(placeQuery)
   const { range, tilt } = calcArrivalRange(
@@ -116,6 +153,7 @@ export async function activateCity(
 export async function activateLandmark(
   input: LandmarkActivationInput
 ): Promise<LandmarkActivationResult> {
+  await exitStreetView()
   const placeQuery = buildLandmarkGeocodeQuery(
     input.landmarkName,
     input.cityName,
@@ -166,6 +204,70 @@ export async function activateLandmark(
     arrivalTilt: tilt,
     settleDelayMs,
     overlayDurationMs,
+  }
+}
+
+export async function showNearby(
+  input: ShowNearbyInput
+): Promise<ShowNearbyResult> {
+  await exitStreetView()
+  const result = await openCategorySidebar(input.category, input.sidebarData)
+  return {
+    category: result.category,
+    locationName: result.data.locationName,
+    locationSub: result.data.locationSub,
+    places: result.places,
+  }
+}
+
+function normalizePlaceNameForMatch(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+export async function openPlaceStreetView(
+  placeName: string
+): Promise<OpenPlaceStreetViewResult> {
+  const trimmed = placeName.trim()
+  if (!trimmed) {
+    throw new Error('place_name must be a non-empty string.')
+  }
+
+  const latest = getLatestNearbyResult()
+  if (!latest) {
+    throw new Error(
+      'No nearby results are available. Run nearby discovery first.'
+    )
+  }
+
+  const token = normalizePlaceNameForMatch(trimmed)
+  const place = latest.places.find(
+    (p) => normalizePlaceNameForMatch(p.name) === token
+  )
+  if (!place) {
+    throw new Error(
+      `"${trimmed}" is not in the current nearby results. Use an exact name from the list.`
+    )
+  }
+
+  hideSidebar()
+  await exitStreetView()
+
+  const nav = await flyToPlaceStreetView(place.lat, place.lng)
+  if (!nav.ok) {
+    throw new Error('Unable to enter Street View.')
+  }
+
+  return {
+    category: latest.category,
+    locationName: latest.data.locationName,
+    locationSub: latest.data.locationSub,
+    placeName: place.name,
+    address: place.address,
+    rating: place.rating,
+    userRatingCount: place.userRatingCount,
+    types: place.types,
+    lat: place.lat,
+    lng: place.lng,
   }
 }
 

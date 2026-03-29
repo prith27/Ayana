@@ -14,6 +14,11 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
     active_state_block = _format_active_state(
         state.current_city,
         state.current_landmark,
+        state.nearby_places,
+        state.nearby_category,
+        state.sidebar_visible,
+        state.street_view_visible,
+        state.current_street_view_place,
     )
 
     return "\n\n".join(
@@ -77,6 +82,23 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                         "Off-itinerary landmarks are allowed if they fit the active city context. Prefer "
                         "landmarks already listed in the itinerary when they match the user's intent."
                     ),
+                    (
+                        "Use show_nearby only after a city is active in the current session grounding."
+                    ),
+                    (
+                        "For show_nearby, category must be exactly one of these strings: "
+                        "food, shopping, activities."
+                    ),
+                    "Do not invent other nearby categories or unsupported discovery tools.",
+                    (
+                        "Use open_place_street_view only after nearby_places are active in session "
+                        "grounding, and only with a place_name that exactly matches one of those "
+                        "names after trimming and case-folding."
+                    ),
+                    (
+                        "Do not call open_place_street_view with a paraphrased or approximate "
+                        "name; the spelling must match the visible nearby list."
+                    ),
                 ]
             ),
             "\n".join(
@@ -90,8 +112,21 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                         "When a move_to_landmark tool result is accepted, say only one short "
                         "transition line about diving into that place, then wait."
                     ),
+                    (
+                        "When a show_nearby tool result is accepted, say only one short "
+                        "transition line about pulling up options nearby, then wait."
+                    ),
+                    (
+                        "When an open_place_street_view tool result is accepted, say only one short "
+                        "transition line about switching to street-level view, then wait."
+                    ),
                     "During the accepted phase, keep it to one sentence maximum.",
                     "During the accepted phase, do not explain facts, history, recommendations, or what the user is seeing yet.",
+                    "During show_nearby accepted phase, do not name specific places until the follow-up arrives after frontend acknowledgement.",
+                    (
+                        "During open_place_street_view accepted phase, do not describe the street-level "
+                        "scene until the follow-up arrives after frontend acknowledgement."
+                    ),
                     "Do not continue as if arrival is complete until the follow-up arrives after frontend acknowledgement.",
                     "After the post-ACK follow-up, continue grounded in the current city and any fresh image context.",
                     "Do not invent landmarks, arrivals, screenshots, or tool outcomes that have not actually occurred.",
@@ -152,6 +187,11 @@ def _extract_landmark_names(landmarks: object) -> list[str]:
 def _format_active_state(
     current_city: dict[str, object] | None,
     current_landmark: dict[str, object] | None,
+    nearby_places: list[dict[str, object]],
+    nearby_category: str | None,
+    sidebar_visible: bool,
+    street_view_visible: bool,
+    current_street_view_place: dict[str, object] | None,
 ) -> str:
     """Format currently active city and landmark grounding."""
     if not current_city:
@@ -197,4 +237,44 @@ def _format_active_state(
     else:
         lines.append("No landmark is active yet.")
 
+    if nearby_places:
+        lines.extend(
+            [
+                "Nearby discovery state:",
+                (
+                    f"- sidebar_visible: {'yes' if sidebar_visible else 'no'}"
+                ),
+                (
+                    f"- category: {nearby_category}"
+                    if nearby_category
+                    else "- category: unavailable"
+                ),
+                "- nearby_places: " + ", ".join(
+                    _extract_nearby_place_names(nearby_places)
+                ),
+            ]
+        )
+    else:
+        lines.append("No nearby discovery results are active yet.")
+
+    if street_view_visible and isinstance(current_street_view_place, dict):
+        sv_name = str(current_street_view_place.get("place_name", "")).strip()
+        lines.extend(
+            [
+                "Street View state:",
+                "- visible: yes",
+                f"- place_name: {sv_name or 'unknown'}",
+            ]
+        )
+
     return "\n".join(lines)
+
+
+def _extract_nearby_place_names(nearby_places: list[dict[str, object]]) -> list[str]:
+    """Return nearby place names from stored session state."""
+    names: list[str] = []
+    for place in nearby_places[:25]:
+        name = place.get("name")
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
+    return names or ["None listed"]

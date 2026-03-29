@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import {
   navigateToLocation,
   flyInWithOrbit,
@@ -15,6 +15,7 @@ import {
   tiltDown,
   flyToPlaceStreetView,
   registerSVEnter,
+  registerSVExit,
 } from '@/lib/maps/cameraControls'
 import { JAPAN_CENTER, JAPAN_STOPS } from '@/lib/locations/japan'
 import { StreetViewOverlay, type StreetViewOverlayHandle } from './StreetViewOverlay'
@@ -25,13 +26,15 @@ import { CityOverlay, LETTER_MS, TAGLINE_DELAY_MS, HOLD_MS, EXIT_MS } from './Ci
 import { resolveArrivalRange } from '@/lib/maps/smartRange'
 import {
   registerSidebarSetters,
+  reportSidebarError,
+  reportSidebarResults,
   showCategorySidebar,
   hideSidebar,
   setAgentSpeaking,
   setAgentIdle,
   type SidebarData,
 } from '@/lib/maps/sidebarControls'
-import type { PlaceCategory } from '@/lib/places/nearbySearch'
+import type { NearbyPlace, PlaceCategory } from '@/lib/places/nearbySearch'
 
 // idx = -1 means "arrived at city view, no specific stop yet"
 // idx = 0..4 means one of the 5 Japan stops
@@ -48,6 +51,7 @@ export function CameraWidget({ gestureState }: CameraWidgetProps) {
   const [revealKey, setRevealKey] = useState<number | null>(null)
   const [revealName, setRevealName] = useState('')
   const [sidebarCategory, setSidebarCategory] = useState<PlaceCategory>('food')
+  const [sidebarRequestId, setSidebarRequestId] = useState(0)
   const svRef = useRef<StreetViewOverlayHandle>(null)
 
   // Register singleton setters and Street View bridge once on mount
@@ -56,10 +60,15 @@ export function CameraWidget({ gestureState }: CameraWidgetProps) {
       setVisible: setSidebarVisible,
       setData: setSidebarData,
       setCategory: setSidebarCategory,
+      setRequestId: setSidebarRequestId,
     })
     const enterStreetView = (lat: number, lng: number) =>
       svRef.current?.enter(lat, lng) ?? Promise.resolve()
+    const exitStreetView = () => {
+      svRef.current?.exit()
+    }
     registerSVEnter(enterStreetView)
+    registerSVExit(exitStreetView)
   }, [])
 
   const current = idx >= 0 ? JAPAN_STOPS[idx] : null
@@ -114,6 +123,22 @@ export function CameraWidget({ gestureState }: CameraWidgetProps) {
     setInStreetView(true)
   }
 
+  const handleSidebarPlacesReady = useCallback((
+    requestId: number,
+    category: PlaceCategory,
+    data: SidebarData,
+    places: NearbyPlace[]
+  ) => {
+    reportSidebarResults({ requestId, category, data, places })
+  }, [])
+
+  const handleSidebarPlacesError = useCallback((
+    requestId: number,
+    errorMessage: string
+  ) => {
+    reportSidebarError(requestId, errorMessage)
+  }, [])
+
   const btn = (
     label: string,
     onClick: () => void,
@@ -161,13 +186,16 @@ export function CameraWidget({ gestureState }: CameraWidgetProps) {
 
       <Sidebar
         visible={sidebarVisible}
+        requestId={sidebarRequestId}
         data={sidebarData}
         category={sidebarCategory}
-        onClose={() => setSidebarVisible(false)}
+        onClose={() => hideSidebar()}
         onPlaceStreetView={(lat, lng) => {
           setInStreetView(true)
           flyToPlaceStreetView(lat, lng)
         }}
+        onPlacesReady={handleSidebarPlacesReady}
+        onPlacesError={handleSidebarPlacesError}
       />
 
       {!inStreetView && (

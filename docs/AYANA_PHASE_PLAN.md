@@ -29,21 +29,116 @@ The frontend should become a renderer/executor before the voice agent is allowed
 
 ---
 
+## Implementation Status Snapshot
+
+This section reflects the current implementation state of Ayana after the prep, runtime, and first orchestration slices were built.
+
+### Completed work
+
+- prep generation flow is implemented end to end
+- the backend prep endpoint returns 3 generated itinerary options plus a stable `prep_id`
+- the frontend renders the globe-centered loading state and generated itinerary overlay
+- the live session can be enabled through the frontend env flag
+- the live session now boots only after prep completes and the backend session is hydrated from `prep_id`
+- the live agent is dynamically grounded on the exact generated itineraries and current session state
+- `choose_itinerary` is implemented end to end over the live websocket
+- `move_to_landmark` is implemented end to end over the live websocket
+- `show_nearby` is implemented end to end over the live websocket
+- screenshot-first and ACK-second ordering is implemented for visible movement tools
+- the frontend runtime supports shared city and landmark executors that are reused by both manual widget actions and live-agent actions
+- the frontend runtime now supports a shared nearby discovery executor that is reused by both manual widget actions and live-agent actions
+- city movement uses runtime geocoding
+- landmark movement uses runtime geocoding grounded by active city and country
+- cinematic landmark arrival preserves overlay, settle timing, and slow orbit
+
+### In-progress product area
+
+- the orchestration story is partially implemented
+- movement tools are done
+- nearby discovery is done
+- Street View entry (`open_place_street_view`) is done
+- silence continuation is still pending
+- full end-to-end orchestration validation is still pending
+
+### Remaining work at the story level
+
+- silence continuation layer
+- end-to-end orchestration validation
+
+### Deferred live tools
+
+- explicit `hide_sidebar` (sidebar closes implicitly when entering Street View)
+
+### Known stabilization gaps
+
+- websocket disconnect handling should be hardened so disconnects do not surface as noisy server exceptions
+- barge-in and interruption behavior still needs explicit validation against the static ADK reference
+- reconnect and interruption lifecycle behavior should be stabilized before final orchestration validation
+
+---
+
+## Current App State
+
+The current Ayana app behavior is:
+
+1. user selects one of the hardcoded personas
+2. frontend calls the backend prep endpoint
+3. globe-centered loading state is shown while prep completes
+4. if live mode is enabled, the websocket session is created only after prep returns and includes the backend-owned `prep_id`
+5. the frontend sends a startup bootstrap text message instructing Ayana to greet the user and present the generated itinerary options
+6. the itinerary overlay appears after a timed reveal delay following that startup bootstrap send
+7. Ayana can call `choose_itinerary`
+8. frontend executes the shared city activation flow, sends screenshot first, then sends `frontend_ack`
+9. backend updates selected itinerary and current city only after ACK and injects grounded post-ACK follow-up text
+10. Ayana can then call `move_to_landmark`
+11. frontend executes the shared landmark activation flow, including overlay and slow orbit, then sends screenshot first and `frontend_ack` second
+12. backend updates current landmark only after ACK and injects grounded post-ACK follow-up text
+13. Ayana can then call `show_nearby(category)`
+14. frontend executes the shared nearby discovery flow, waits for visible sidebar readiness and nearby results, then sends screenshot first and `frontend_ack` second
+15. backend stores the latest nearby result set only after ACK and injects grounded follow-up text asking which option the user wants to explore next
+16. Ayana can call `open_place_street_view(place_name)` with an exact nearby name; the frontend hides the sidebar, enters Street View, sends screenshot first, then `frontend_ack` (failed if there is no coverage)
+
+### Current live-agent behavior
+
+- Ayana has a fixed energetic travel-guide voice
+- generated prep persona influences itinerary generation, not Ayana's speaking style
+- accepted-phase movement narration is intentionally short:
+  - one sentence maximum
+  - no landmark facts or destination description before ACK
+- accepted-phase nearby discovery narration is also intentionally short:
+  - one sentence maximum
+  - no specific place names before ACK
+- accepted-phase Street View narration is intentionally short:
+  - one sentence maximum
+  - no street-level scene description before ACK
+- post-ACK narration is where Ayana is allowed to describe the visible scene
+
+### Current testing surface
+
+- clickable itinerary overlay remains available as the testing path for city activation
+- the runtime widget remains available for manual landmark testing
+- manual nearby sidebar testing remains available
+- live-agent movement and nearby discovery now share the same execution primitives as the manual testing paths
+
+---
+
 ## Phase 0 — Current State
 
 ### What exists today
 
-- hardcoded persona selection
-- hardcoded Tokyo/Japan destination flow
-- hardcoded landmark progression
-- hardcoded city and landmark overlay mappings
-- working live voice connection infrastructure
-- gesture layer integrated into the frontend
-- sidebar and street-level exploration primitives
+- hardcoded persona selection still exists as the prep trigger
+- generated itinerary prep flow is implemented
+- hardcoded Tokyo/Japan progression is no longer the main path for city and landmark activation
+- dynamic city and landmark runtime movement primitives are implemented
+- live voice connection infrastructure is working and grounded on prep-generated itineraries
+- gesture layer is integrated into the frontend
+- sidebar and street-level exploration primitives exist in the frontend
+- nearby discovery is now agent-orchestrated
+- Street View entry is now agent-orchestrated (`open_place_street_view`)
 
 ### Main limitation
 
-The current frontend is a cinematic prototype, not yet a dynamic itinerary runtime.
+The current app is no longer just a cinematic prototype, but the orchestration layer is still incomplete because discovery tools, silence continuation, and full validation are not finished.
 
 ---
 
@@ -305,8 +400,8 @@ The next build step should focus on reconnecting the live agent on top of those 
    - `choose_itinerary`
    - `move_to_landmark`
    - `show_nearby`
-   - `hide_sidebar`
    - `open_place_street_view`
+   - (explicit `hide_sidebar` deferred — implicit dismiss with Street View)
 2. ground the live agent on generated itineraries plus current session state
 3. add a thin deterministic director/state layer for gating and continuity
 4. re-enable the live session only after prep is complete

@@ -6,6 +6,46 @@ It is intentionally focused on the immediate build stage before agent orchestrat
 
 ---
 
+## Status Note
+
+This document is now mostly historical reference.
+
+The runtime primitives it described have been substantially implemented, and Ayana has already moved into the orchestration phase on top of those primitives.
+
+### What is already done
+
+- prep-first persona to itinerary generation flow exists
+- globe-centered prep loading state exists
+- generated itinerary overlay exists
+- live session boot now happens after prep completes
+- shared city activation runtime exists
+- shared landmark activation runtime exists
+- runtime geocoding is in use for city and landmark movement
+- overlay payloads from movement tools are being consumed by the frontend runtime
+- the landmark flow preserves settle, overlay, and slow-orbit behavior
+
+### What this document no longer represents
+
+- it is no longer the current next phase
+- the live session is no longer simply "disabled for this phase" in the actual app
+- the app has already moved beyond pure primitive testing into ACK-gated live-agent orchestration
+
+### What is current instead
+
+The current implementation focus is the orchestration story:
+
+- `choose_itinerary` implemented
+- `move_to_landmark` implemented
+- `show_nearby` implemented
+- `open_place_street_view` implemented (uses `flyToPlaceStreetView`; explicit `hide_sidebar` tool not on the live surface)
+
+Use the orchestration docs as the source of truth for current sequencing:
+
+- `docs/AYANA_ORCHESTRATION_STORY.md`
+- `docs/AYANA_ORCHESTRATION_PHASE_PLAN.md`
+
+---
+
 ## 1. Purpose
 
 The current frontend is a hardcoded cinematic prototype centered around Tokyo and a fixed Japan stop list.

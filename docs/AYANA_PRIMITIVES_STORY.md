@@ -6,6 +6,32 @@ It captures what is already locked for the current build step before agent orche
 
 ---
 
+## Status Note
+
+This document is now a historical primitives reference rather than the active implementation driver.
+
+### Current reality
+
+- the primitives phase has been substantially completed
+- prep generation is implemented
+- runtime city movement is implemented
+- runtime landmark movement is implemented
+- live-agent orchestration has already started on top of those primitives
+
+### Important divergence from older notes below
+
+Some older sections in this scratchpad reflect earlier thinking before the orchestration contract was finalized.
+
+In particular:
+
+- the active orchestration contract now uses free-text `landmark_name` for `move_to_landmark`
+- off-itinerary landmarks are allowed inside the active city context
+- the current source of truth for orchestration sequencing is:
+  - `docs/AYANA_ORCHESTRATION_STORY.md`
+  - `docs/AYANA_ORCHESTRATION_PHASE_PLAN.md`
+
+---
+
 ## Purpose
 
 The purpose of this phase is to establish the minimum data and runtime primitives Ayana needs so the frontend can stop depending on hardcoded Tokyo/Japan progression.

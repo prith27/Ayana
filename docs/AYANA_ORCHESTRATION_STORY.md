@@ -33,6 +33,73 @@ This phase is not about:
 
 ---
 
+## Current Implementation Status
+
+The orchestration story is now partially implemented.
+
+### Completed slices
+
+- websocket transport and ACK-gated message shapes are implemented on the existing live ADK socket
+- backend session-director state exists and tracks:
+  - persona
+  - generated itineraries
+  - selected itinerary
+  - current city
+  - current landmark
+  - nearby places
+  - sidebar visibility
+  - street-view visibility
+  - current Street View place (after a successful Street View ACK)
+- startup grounding now happens from backend-owned prep state via `prep_id`
+- the live agent is grounded on exact generated itineraries and current session state
+- `choose_itinerary` is fully implemented end to end
+- `move_to_landmark` is fully implemented end to end
+- `show_nearby` is fully implemented end to end
+- `open_place_street_view` is fully implemented end to end
+- screenshot-first then ACK-second ordering is implemented for visible movement tools
+- post-ACK semantic follow-up is implemented for movement tools
+
+### Remaining slices
+
+- silence continuation nudge layer
+- full end-to-end orchestration validation
+
+### Deferred live tools
+
+- explicit `hide_sidebar` — nearby sidebar is closed implicitly when entering Street View (and similar UX), not via a separate agent tool
+
+### Current app behavior
+
+At the current build state:
+
+1. prep completes before the live session is created
+2. websocket connection includes `prep_id`
+3. backend hydrates session grounding before the live run starts
+4. frontend sends a startup bootstrap message telling Ayana to greet and present only the generated itinerary options
+5. itinerary overlay reveal is delayed after the startup send to give Ayana time to begin the greeting beat
+6. after city selection, Ayana can drive city movement through `choose_itinerary`
+7. after city arrival ACK, Ayana can drive landmark movement through `move_to_landmark`
+8. after landmark arrival ACK, Ayana can drive nearby discovery through `show_nearby(category)`
+9. nearby discovery returns grounded visible options through screenshot-first and ACK-second ordering
+10. after nearby ACK, Ayana can open Street View for an exact listed `place_name` via `open_place_street_view`; failures (e.g. no coverage) return a failed `frontend_ack`
+
+### Current accepted-phase speech rule
+
+For the implemented movement tools, the accepted-phase speech is now locked to:
+
+- one short sentence maximum
+- no facts or visual description yet
+- no pretending arrival is already complete
+
+The real grounded explanation starts only after frontend ACK confirms the visible state.
+
+### Known implementation gaps
+
+- websocket disconnect handling still needs hardening
+- barge-in and interruption behavior should be validated and tightened against the static ADK reference
+
+---
+
 ## Locked Orchestration Take
 
 The orchestration model should stay simple for now.
@@ -99,12 +166,21 @@ The accepted result should tell the agent:
 
 - the requested action has started
 - the visible transition is not complete yet
-- it should keep the user engaged in a cinematic storytelling tone while waiting
+- it should keep the user engaged briefly while waiting
+- it should stay extremely short for movement tools
 
 Examples:
 
-- `We are drifting into Tokyo now.`
-- `Let us step beneath the gates of Fushimi Inari.`
+- `We are heading into Tokyo now.`
+- `Let us step into Fushimi Inari.`
+
+### Current locked wording take
+
+For `choose_itinerary` and `move_to_landmark`, the accepted phase should be:
+
+- one sentence maximum
+- transition-only
+- no facts, history, recommendations, or visual description before ACK
 
 ### ACK semantic meaning
 
@@ -185,7 +261,6 @@ Examples:
 - `ayana.choose_itinerary`
 - `ayana.move_to_landmark`
 - `ayana.show_nearby`
-- `ayana.hide_sidebar`
 - `ayana.open_place_street_view`
 
 #### `frontend_ack`
@@ -318,7 +393,7 @@ This is the frontend visible-state confirmation.
 
 ### Example `frontend_ack` for `show_nearby`
 
-For nearby discovery, the ACK should return the compact nearby place list the agent can use next.
+For nearby discovery, the ACK should return grounded nearby place data the agent can use next.
 
 ```json
 {
@@ -335,12 +410,20 @@ For nearby discovery, the ACK should return the compact nearby place list the ag
         {
           "name": "Kyoto Gogyo",
           "types": ["ramen", "restaurant"],
-          "rating": 4.3
+          "rating": 4.3,
+          "user_rating_count": 1821,
+          "address": "700 Shimogyo-ku, Kyoto",
+          "lat": 35.0037,
+          "lng": 135.7683
         },
         {
           "name": "Nishiki Market",
           "types": ["market", "food"],
-          "rating": 4.5
+          "rating": 4.5,
+          "user_rating_count": 9412,
+          "address": "609 Nishidaimonjicho, Kyoto",
+          "lat": 35.005,
+          "lng": 135.7648
         }
       ]
     }
@@ -365,10 +448,6 @@ This screenshot-first ordering should be used for:
 - `show_nearby`
 - `open_place_street_view`
 
-It is not required for:
-
-- `hide_sidebar`
-
 ---
 
 ## Tool Families
@@ -385,9 +464,8 @@ These are the core scene-transition tools.
 ### 2. Discovery tools
 
 - `show_nearby`
-- `hide_sidebar`
 
-These expose the existing sidebar-based nearby place exploration.
+This exposes the existing sidebar-based nearby place exploration. The sidebar may be dismissed implicitly (for example when entering Street View) without a dedicated `hide_sidebar` tool on the live surface.
 
 ### 3. Immersion tools
 
@@ -455,15 +533,15 @@ Allowed categories:
 
 This should open the existing nearby sidebar and return the visible nearby place list back to the agent.
 
-### `hide_sidebar`
+The returned nearby place payload should include grounded details such as:
 
-Recommended shape:
-
-```json
-{}
-```
-
-This should close the nearby sidebar if it is open.
+- `name`
+- `rating`
+- `user_rating_count`
+- `types`
+- `address`
+- `lat`
+- `lng`
 
 ### `open_place_street_view`
 
@@ -477,9 +555,9 @@ Recommended shape:
 
 ### Rules
 
-- `place_name` should come from the most recent nearby discovery result set
+- `place_name` must exactly match (trim + case-insensitive) a name from the session `nearby_places` set populated by the last successful `show_nearby` ACK
 - the tool should not require the agent to send coordinates
-- the frontend/runtime already owns the actual Street View execution path
+- the frontend/runtime resolves coordinates from cached nearby results and uses the existing `flyToPlaceStreetView` path; no Street View coverage surfaces as a failed ACK
 
 ---
 
@@ -591,8 +669,7 @@ After itinerary selection:
 
 - `move_to_landmark` allowed
 - `show_nearby` allowed
-- `hide_sidebar` allowed
-- `open_place_street_view` allowed after discovery has returned places
+- `open_place_street_view` allowed after discovery has returned places (names must match stored nearby results)
 
 ---
 
@@ -661,7 +738,7 @@ The backend should own:
 
 ## Suggested Nearby Result Shape
 
-`show_nearby(category)` should return a compact list such as:
+`show_nearby(category)` should return a grounded compact list such as:
 
 ```json
 {
@@ -670,12 +747,20 @@ The backend should own:
     {
       "name": "Kyoto Gogyo",
       "types": ["ramen", "restaurant"],
-      "rating": 4.3
+      "rating": 4.3,
+      "user_rating_count": 1821,
+      "address": "700 Shimogyo-ku, Kyoto",
+      "lat": 35.0037,
+      "lng": 135.7683
     },
     {
       "name": "Nishiki Market",
       "types": ["market", "food"],
-      "rating": 4.5
+      "rating": 4.5,
+      "user_rating_count": 9412,
+      "address": "609 Nishidaimonjicho, Kyoto",
+      "lat": 35.005,
+      "lng": 135.7648
     }
   ]
 }
@@ -699,9 +784,15 @@ This orchestration phase is complete when:
 2. the agent can call `choose_itinerary`
 3. the agent can call `move_to_landmark`
 4. the agent can call `show_nearby(category)`
-5. the agent can call `hide_sidebar`
-6. the agent can call `open_place_street_view(place_name)`
-7. silence can trigger a lightweight continuation nudge
+5. the agent can call `open_place_street_view(place_name)`
+6. silence can trigger a lightweight continuation nudge
+
+### Current completion status
+
+Today, this boundary is only partially met:
+
+- items 1, 2, 3, 4, and 5 are implemented
+- item 6 is still pending
 
 ---
 
