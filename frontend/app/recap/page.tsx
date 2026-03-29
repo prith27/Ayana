@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, memo } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { loadPersistedTranscript } from '@/lib/ayana/transcript'
@@ -235,6 +235,40 @@ function useAutoAdvance(card: number, isLast: boolean, onAdvance: () => void) {
 
   return progress
 }
+
+// Isolated component so the 60fps rAF loop only re-renders the progress bar
+const SegmentedProgressBar = memo(function SegmentedProgressBar({
+  card, isLast, onAdvance, pc,
+}: {
+  card: number; isLast: boolean; onAdvance: () => void; pc: PersonaConfig
+}) {
+  const timerProgress = useAutoAdvance(card, isLast, onAdvance)
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0,
+      height: '2px',
+      display: 'flex', gap: '3px', padding: '0 0',
+      zIndex: 200,
+    }}>
+      {Array.from({ length: TOTAL_CARDS }).map((_, i) => (
+        <div key={i} style={{
+          flex: 1, height: '100%',
+          background: 'rgba(255,255,255,.1)',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            width: i < card  ? '100%'
+                 : i === card ? (isLast ? '100%' : `${timerProgress * 100}%`)
+                 : '0%',
+            background: i <= card ? pc.color : 'transparent',
+            boxShadow: i === card && !isLast ? `0 0 5px ${pc.glow}` : 'none',
+          }}/>
+        </div>
+      ))}
+    </div>
+  )
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CARD AUDIO ENGINE  (Web Audio API – ambient soundscapes per card)
@@ -1306,19 +1340,6 @@ export default function RecapPage() {
   const advance = useCallback(() => goTo(card + 1), [card, goTo])
   const back    = useCallback(() => goTo(card - 1), [card, goTo])
 
-  // Hide Google Maps alpha banner
-  useEffect(() => {
-    const hide = () => {
-      document.querySelectorAll('div').forEach(el => {
-        if (el.textContent?.includes('alpha channel') && el.children.length < 5) {
-          el.style.display = 'none'
-        }
-      })
-    }
-    const observer = new MutationObserver(hide)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [])
 
   // Keyboard
   useEffect(() => {
@@ -1344,7 +1365,6 @@ export default function RecapPage() {
 
   const isLast = card === TOTAL_CARDS - 1
 
-  const timerProgress = useAutoAdvance(card, isLast || loadingRecap || !recapCtx, advance)
   useCardAudio(card, audioEnabled && !!recapCtx)
 
   const handleInteract = useCallback(() => {
@@ -1400,7 +1420,9 @@ export default function RecapPage() {
 
   const pc = recapCtx?.pc ?? PERSONA_CFG.adventure
 
-  const CARDS = [
+  const cssString = useMemo(() => buildCSS(pc), [pc])
+
+  const CARDS = useMemo(() => [
     <C0_Hero         key="c0" />,
     <C1_Persona      key="c1" />,
     <C2_Count        key="c2" />,
@@ -1411,14 +1433,15 @@ export default function RecapPage() {
     <C7_Stats        key="c7" active={card === 7} />,
     <C8_DNA          key="c8" />,
     <C9_Next         key="c9" />,
-  ]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [card === 7])
 
   // Past the gate: recapCtx is guaranteed non-null here
   const safeCtx = recapCtx as RecapContextValue
 
   return (
     <RecapCtx.Provider value={safeCtx}>
-      <style dangerouslySetInnerHTML={{ __html: buildCSS(pc) }} />
+      <style dangerouslySetInnerHTML={{ __html: cssString }} />
 
       {/* Loading overlay — shown while Grok processes the transcript */}
       {loadingRecap && (
@@ -1473,29 +1496,12 @@ export default function RecapPage() {
         onTouchEnd={onTouchEnd}
       >
         {/* ── Stories-style segmented progress ───── */}
-        <div style={{
-          position:'absolute', top:0, left:0, right:0,
-          height:'2px',
-          display:'flex', gap:'3px', padding:'0 0',
-          zIndex:200,
-        }}>
-          {Array.from({ length: TOTAL_CARDS }).map((_, i) => (
-            <div key={i} style={{
-              flex:1, height:'100%',
-              background:'rgba(255,255,255,.1)',
-              overflow:'hidden',
-            }}>
-              <div style={{
-                height:'100%',
-                width: i < card  ? '100%'
-                     : i === card ? (isLast ? '100%' : `${timerProgress * 100}%`)
-                     : '0%',
-                background: i <= card ? pc.color : 'transparent',
-                boxShadow: i === card && !isLast ? `0 0 5px ${pc.glow}` : 'none',
-              }}/>
-            </div>
-          ))}
-        </div>
+        <SegmentedProgressBar
+          card={card}
+          isLast={isLast || loadingRecap || !recapCtx}
+          onAdvance={advance}
+          pc={pc}
+        />
 
         {/* ── AYANA wordmark ────────────────────────────────────────── */}
         <div style={{ position:'absolute', top:'18px', left:'20px', zIndex:200 }}>
@@ -1603,7 +1609,7 @@ export default function RecapPage() {
             whiteSpace:'nowrap',
             zIndex:200,
           }}>
-            {Math.ceil((1 - timerProgress) * 5)}s · tap to skip
+            tap to skip
           </div>
         )}
 
