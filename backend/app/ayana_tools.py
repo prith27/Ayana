@@ -331,3 +331,35 @@ def open_place_street_view(
     )
     _publish_result(session_id, result)
     return result
+
+
+def end_session(
+    request_note: str = "",
+    tool_context: ToolContext = None,
+) -> dict[str, object]:
+    """Start the frontend-driven recap transition and live session shutdown."""
+    _ = request_note
+    if tool_context is None:
+        raise ValueError("tool_context is required for end_session.")
+    session_id = tool_context.session.id
+    job_id = str(uuid4())
+    frontend_action = build_frontend_action(
+        "ayana.end_session",
+        "end_session",
+        {},
+        job_id=job_id,
+    )
+
+    result = build_tool_result(
+        status="accepted",
+        tool="end_session",
+        summary=(
+            "Ayana is wrapping the live journey. Say only one short closing transition "
+            "line, do not keep guiding the trip, and wait for the follow-up before the "
+            "session ends."
+        ),
+        job_id=job_id,
+        frontend_action=frontend_action,
+    )
+    _publish_result(session_id, result)
+    return result

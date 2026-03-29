@@ -22,6 +22,7 @@ import {
 } from '@/lib/maps/sidebarControls'
 import {
   buildFrontendAckMessage,
+  type EndSessionActionPayload,
   isFrontendActionMessage,
   isToolResultMessage,
   type ChooseItineraryActionPayload,
@@ -99,6 +100,7 @@ interface LiveAgentSessionProps {
   onOpenPlaceStreetViewAction: (request: {
     placeName: string
   }) => Promise<OpenPlaceStreetViewResult>
+  onEndSessionAction: () => Promise<void>
 }
 
 interface LiveAgentEventPart {
@@ -129,6 +131,8 @@ interface LiveAgentEvent {
 
 const MAX_RETRIES = 5
 const USER_ID_STORAGE_KEY = 'ayana-live-user-id'
+const END_SESSION_IDLE_DRAIN_MS = 2_000
+const END_SESSION_MAX_DRAIN_MS = 15_000
 
 export function LiveAgentSession({
   persona,
@@ -139,6 +143,7 @@ export function LiveAgentSession({
   onMoveToLandmarkAction,
   onShowNearbyAction,
   onOpenPlaceStreetViewAction,
+  onEndSessionAction,
 }: LiveAgentSessionProps) {
   const websocketRef = useRef<WebSocket | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -151,6 +156,7 @@ export function LiveAgentSession({
   const moveToLandmarkActionRef = useRef(onMoveToLandmarkAction)
   const showNearbyActionRef = useRef(onShowNearbyAction)
   const openPlaceStreetViewActionRef = useRef(onOpenPlaceStreetViewAction)
+  const endSessionActionRef = useRef(onEndSessionAction)
   const bootstrappedSessionRef = useRef<string | null>(null)
   const shouldReconnectRef = useRef(false)
   const frontendActionQueueRef = useRef<FrontendAction[]>([])
@@ -160,6 +166,10 @@ export function LiveAgentSession({
   // Transcript accumulation buffers (partial chunks → flush on finished)
   const aiTurnBufferRef = useRef<string>('')
   const userTurnBufferRef = useRef<string>('')
+  const pendingEndSessionRef = useRef(false)
+  const finalizingEndSessionRef = useRef(false)
+  const endSessionIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const endSessionMaxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     chooseItineraryActionRef.current = onChooseItineraryAction
@@ -176,6 +186,10 @@ export function LiveAgentSession({
   useEffect(() => {
     openPlaceStreetViewActionRef.current = onOpenPlaceStreetViewAction
   }, [onOpenPlaceStreetViewAction])
+
+  useEffect(() => {
+    endSessionActionRef.current = onEndSessionAction
+  }, [onEndSessionAction])
 
   useEffect(() => {
     playerRef.current = audioPlayerResources
@@ -276,6 +290,10 @@ export function LiveAgentSession({
       console.info('[live-agent] websocket closed', { sessionId })
       websocketRef.current = null
       setAgentDisconnected()
+      if (pendingEndSessionRef.current && !finalizingEndSessionRef.current) {
+        void finalizePendingEndSession()
+        return
+      }
       scheduleReconnect()
     }
   }
@@ -321,6 +339,7 @@ export function LiveAgentSession({
     }
 
     if (liveEvent.outputTranscription?.text) {
+      markAssistantOutputActivity()
       setAgentSpeaking()
       aiTurnBufferRef.current += liveEvent.outputTranscription.text
       if (liveEvent.outputTranscription.finished) {
@@ -340,12 +359,14 @@ export function LiveAgentSession({
     const parts = liveEvent.content?.parts ?? []
     for (const part of parts) {
       if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/pcm') && playerRef.current) {
+        markAssistantOutputActivity()
         setAgentSpeaking()
         void resumeAudioContext(playerRef.current.context)
         playerRef.current.node.port.postMessage(base64ToArray(part.inlineData.data))
       }
 
       if (part.text && !part.thought) {
+        markAssistantOutputActivity()
         setAgentSpeaking()
       }
     }
@@ -589,6 +610,43 @@ export function LiveAgentSession({
       return
     }
 
+    if (action.action_type === 'ayana.end_session') {
+      const payload = parseEndSessionActionPayload(action.payload)
+      if (!payload) {
+        await sendFrontendAck({
+          status: 'failed',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary: 'Invalid ayana.end_session payload from backend.',
+        })
+        return
+      }
+
+      try {
+        await sendFrontendAck({
+          status: 'applied',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary: 'Ayana is wrapping up and the recap will open once the response finishes.',
+        })
+        beginPendingEndSession()
+      } catch (error) {
+        const summary = error instanceof Error
+          ? error.message
+          : 'Unable to apply ayana.end_session.'
+        await sendFrontendAck({
+          status: 'failed',
+          action_type: action.action_type,
+          source_tool: action.source_tool,
+          job_id: action.job_id,
+          summary,
+        })
+      }
+      return
+    }
+
     await sendFrontendAck({
       status: 'failed',
       action_type: action.action_type,
@@ -627,6 +685,81 @@ export function LiveAgentSession({
     }))
   }
 
+  function flushTranscriptBuffers(): void {
+    if (aiTurnBufferRef.current.trim()) {
+      addAITurn(aiTurnBufferRef.current)
+      aiTurnBufferRef.current = ''
+    }
+    if (userTurnBufferRef.current.trim()) {
+      addUserTurn(userTurnBufferRef.current)
+      userTurnBufferRef.current = ''
+    }
+  }
+
+  function beginPendingEndSession(): void {
+    pendingEndSessionRef.current = true
+    finalizingEndSessionRef.current = false
+    shouldReconnectRef.current = false
+    schedulePendingEndSessionDrain()
+
+    if (endSessionMaxTimerRef.current) {
+      clearTimeout(endSessionMaxTimerRef.current)
+    }
+    endSessionMaxTimerRef.current = setTimeout(() => {
+      void finalizePendingEndSession()
+    }, END_SESSION_MAX_DRAIN_MS)
+  }
+
+  function markAssistantOutputActivity(): void {
+    if (!pendingEndSessionRef.current || finalizingEndSessionRef.current) {
+      return
+    }
+    schedulePendingEndSessionDrain()
+  }
+
+  function schedulePendingEndSessionDrain(): void {
+    if (!pendingEndSessionRef.current || finalizingEndSessionRef.current) {
+      return
+    }
+
+    if (endSessionIdleTimerRef.current) {
+      clearTimeout(endSessionIdleTimerRef.current)
+    }
+    endSessionIdleTimerRef.current = setTimeout(() => {
+      void finalizePendingEndSession()
+    }, END_SESSION_IDLE_DRAIN_MS)
+  }
+
+  async function finalizePendingEndSession(): Promise<void> {
+    if (!pendingEndSessionRef.current || finalizingEndSessionRef.current) {
+      return
+    }
+
+    pendingEndSessionRef.current = false
+    finalizingEndSessionRef.current = true
+    clearPendingEndSessionTimers()
+
+    try {
+      flushTranscriptBuffers()
+      disconnect(false)
+      setAgentDisconnected()
+      await endSessionActionRef.current()
+    } finally {
+      finalizingEndSessionRef.current = false
+    }
+  }
+
+  function clearPendingEndSessionTimers(): void {
+    if (endSessionIdleTimerRef.current) {
+      clearTimeout(endSessionIdleTimerRef.current)
+      endSessionIdleTimerRef.current = null
+    }
+    if (endSessionMaxTimerRef.current) {
+      clearTimeout(endSessionMaxTimerRef.current)
+      endSessionMaxTimerRef.current = null
+    }
+  }
+
   function scheduleReconnect(): void {
     if (!shouldReconnectRef.current || !sessionIdRef.current || !sessionPersonaRef.current) {
       return
@@ -646,6 +779,8 @@ export function LiveAgentSession({
 
   function disconnect(allowReconnect: boolean): void {
     shouldReconnectRef.current = allowReconnect
+    clearPendingEndSessionTimers()
+    pendingEndSessionRef.current = false
 
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current)
@@ -823,6 +958,12 @@ function parseOpenPlaceStreetViewActionPayload(
     return null
   }
   return { place_name: placeName.trim() }
+}
+
+function parseEndSessionActionPayload(
+  payload: Record<string, unknown>
+): EndSessionActionPayload | null {
+  return typeof payload === 'object' && payload !== null ? {} : null
 }
 
 function buildPrepFingerprint(

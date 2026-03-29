@@ -10,9 +10,12 @@ from ayana_orchestration import (
     mark_current_landmark,
     mark_nearby_places,
     mark_selected_itinerary,
+    mark_session_ending,
     mark_street_view_opened,
+    mark_wrap_checkpoint_offered,
     resolve_itinerary,
     resolve_selected_itinerary,
+    should_offer_wrap_checkpoint,
 )
 
 DEFAULT_CITY_LABEL = "this city"
@@ -34,6 +37,8 @@ def build_post_ack_followup(
         return _build_show_nearby_followup(session_id, ack)
     if action_type == "ayana.open_place_street_view":
         return _build_open_place_street_view_followup(session_id, ack)
+    if action_type == "ayana.end_session":
+        return _build_end_session_followup(session_id, ack)
     return None
 
 
@@ -131,15 +136,23 @@ def _build_move_to_landmark_followup(
 
     screenshot_note = _build_screenshot_note(session_id, ack)
     grounding_suffix = _build_landmark_grounding_suffix(matched_landmark)
-    next_destination_instruction = (
-        f"Offer a guided choice at the end: nearby food, activities, shopping, "
-        f"or the next landmark '{next_landmark_name}'."
-        if next_landmark_name
-        else (
-            "Offer a guided choice at the end: nearby food, activities, shopping, "
-            "or continuing onward to another landmark."
+    if should_offer_wrap_checkpoint(session_id):
+        mark_wrap_checkpoint_offered(session_id)
+        next_destination_instruction = (
+            "You have now visited three landmarks in this session. After the grounded "
+            "landmark explanation, offer a soft wrap-up choice: ask whether the user "
+            "wants to end here and see their recap, or continue exploring."
         )
-    )
+    else:
+        next_destination_instruction = (
+            f"Offer a guided choice at the end: nearby food, activities, shopping, "
+            f"or the next landmark '{next_landmark_name}'."
+            if next_landmark_name
+            else (
+                "Offer a guided choice at the end: nearby food, activities, shopping, "
+                "or continuing onward to another landmark."
+            )
+        )
 
     return (
         f"{screenshot_note}The arrival at {landmark_name} in {city_name}, "
@@ -247,6 +260,20 @@ def _build_open_place_street_view_followup(
         f"switch nearby category, or continue onward. Do not invent coverage that is not "
         f"there.{detail_suffix}"
     ).strip()
+
+
+def _build_end_session_followup(
+    session_id: str, ack: dict[str, Any]
+) -> str | None:
+    """Persist intentional ending state after the recap transition ACK."""
+    mark_session_ending(session_id)
+    pending_job = get_pending_job(session_id, ack["job_id"]) or {}
+    if pending_job.get("image_sent"):
+        return (
+            "The session ending flow is now applied. Close with one brief warm sign-off "
+            "only if there is still time before teardown."
+        )
+    return None
 
 
 def _string_from_ack_or_context(

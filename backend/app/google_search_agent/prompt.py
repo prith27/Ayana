@@ -19,6 +19,10 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
         state.sidebar_visible,
         state.street_view_visible,
         state.current_street_view_place,
+        state.visited_landmark_count,
+        state.visited_landmark_names,
+        state.wrap_checkpoint_offered,
+        state.session_ending,
     )
 
     return "\n\n".join(
@@ -108,6 +112,14 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                         "If the user picks one of the currently visible nearby places, prefer "
                         "open_place_street_view with that exact place_name."
                     ),
+                    (
+                        "Call end_session when the user explicitly asks to stop, wrap up, end the session, "
+                        "or see the recap."
+                    ),
+                    (
+                        "After three visited landmarks, offer a wrap-up choice, but do not call "
+                        "end_session unless the user confirms they want to end."
+                    ),
                 ]
             ),
             "\n".join(
@@ -128,6 +140,10 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                     (
                         "When an open_place_street_view tool result is accepted, say only one short "
                         "transition line about switching to street-level view, then wait."
+                    ),
+                    (
+                        "When an end_session tool result is accepted, say only one short closing "
+                        "transition line, then wait."
                     ),
                     "During the accepted phase, keep it to one sentence maximum.",
                     "During the accepted phase, do not explain facts, history, recommendations, or what the user is seeing yet.",
@@ -150,6 +166,10 @@ def build_ayana_instruction(context: ReadonlyContext) -> str:
                     (
                         "Do not auto-chain indefinitely from landmark to landmark or category to category "
                         "unless the post-ACK follow-up explicitly instructs you to do that."
+                    ),
+                    (
+                        "If the user confirms they want to end, prefer end_session over continuing normal "
+                        "storytelling."
                     ),
                     "Do not invent landmarks, arrivals, screenshots, or tool outcomes that have not actually occurred.",
                 ]
@@ -214,6 +234,10 @@ def _format_active_state(
     sidebar_visible: bool,
     street_view_visible: bool,
     current_street_view_place: dict[str, object] | None,
+    visited_landmark_count: int,
+    visited_landmark_names: list[str],
+    wrap_checkpoint_offered: bool,
+    session_ending: bool,
 ) -> str:
     """Format currently active city and landmark grounding."""
     if not current_city:
@@ -288,6 +312,20 @@ def _format_active_state(
                 f"- place_name: {sv_name or 'unknown'}",
             ]
         )
+
+    lines.extend(
+        [
+            "Journey progression:",
+            f"- visited_landmark_count: {visited_landmark_count}",
+            (
+                "- visited_landmarks: " + ", ".join(visited_landmark_names)
+                if visited_landmark_names
+                else "- visited_landmarks: none yet"
+            ),
+            f"- wrap_checkpoint_offered: {'yes' if wrap_checkpoint_offered else 'no'}",
+            f"- session_ending: {'yes' if session_ending else 'no'}",
+        ]
+    )
 
     return "\n".join(lines)
 

@@ -8,6 +8,7 @@ export type FrontendActionType =
   | 'ayana.move_to_landmark'
   | 'ayana.show_nearby'
   | 'ayana.open_place_street_view'
+  | 'ayana.end_session'
 
 export interface ToolResult {
   status: ToolStatus
@@ -59,6 +60,8 @@ export interface ShowNearbyActionPayload extends Record<string, unknown> {
 export interface OpenPlaceStreetViewActionPayload extends Record<string, unknown> {
   place_name: string
 }
+
+export type EndSessionActionPayload = Record<string, never>
 
 /** Fields sent on successful `ayana.open_place_street_view` frontend_ack.payload */
 export interface OpenPlaceStreetViewAckPayload extends Record<string, unknown> {

@@ -164,3 +164,94 @@ def test_move_to_landmark_followup_becomes_interactive() -> None:
     assert "food, activities, shopping" in msg
     assert "Gion" in msg
     assert "Why this stop matters" in msg
+
+
+def test_third_landmark_followup_offers_wrap_checkpoint_once() -> None:
+    sid = "test-session-wrap-checkpoint"
+    itinerary = {
+        "id": "kyoto_wrap_01",
+        "city_name": "Kyoto",
+        "country_name": "Japan",
+        "title": "Kyoto Highlights",
+        "landmarks": [
+            {"name": "Fushimi Inari Shrine"},
+            {"name": "Gion"},
+            {"name": "Kiyomizu-dera Temple"},
+            {"name": "Arashiyama Bamboo Grove"},
+        ],
+    }
+    sync_prep_state(
+        sid,
+        persona="peaceful",
+        generated_itineraries=[itinerary],
+    )
+    mark_selected_itinerary(sid, itinerary=itinerary)
+
+    for index, landmark_name in enumerate(
+        ["Fushimi Inari Shrine", "Gion", "Kiyomizu-dera Temple"],
+        start=1,
+    ):
+        msg = build_post_ack_followup(
+            sid,
+            {
+                "status": "applied",
+                "action_type": "ayana.move_to_landmark",
+                "job_id": f"job-wrap-{index}",
+                "payload": {
+                    "itinerary_id": "kyoto_wrap_01",
+                    "city_name": "Kyoto",
+                    "country_name": "Japan",
+                    "landmark_name": landmark_name,
+                    "formatted_address": "Kyoto, Japan",
+                    "lat": 35.0 + index,
+                    "lng": 135.0 + index,
+                    "overlay_preset": "heritage",
+                    "tagline": landmark_name,
+                },
+            },
+        )
+
+    assert msg is not None
+    assert "visited three landmarks" in msg
+    assert "end here and see their recap" in msg
+    state = get_or_create_session_state(sid)
+    assert state.visited_landmark_count == 3
+    assert state.wrap_checkpoint_offered is True
+
+    msg_again = build_post_ack_followup(
+        sid,
+        {
+            "status": "applied",
+            "action_type": "ayana.move_to_landmark",
+            "job_id": "job-wrap-4",
+            "payload": {
+                "itinerary_id": "kyoto_wrap_01",
+                "city_name": "Kyoto",
+                "country_name": "Japan",
+                "landmark_name": "Arashiyama Bamboo Grove",
+                "formatted_address": "Kyoto, Japan",
+                "lat": 39.0,
+                "lng": 139.0,
+                "overlay_preset": "nature",
+                "tagline": "Bamboo",
+            },
+        },
+    )
+    assert msg_again is not None
+    assert "visited three landmarks" not in msg_again
+
+
+def test_end_session_followup_marks_session_ending() -> None:
+    sid = "test-session-end"
+    msg = build_post_ack_followup(
+        sid,
+        {
+            "status": "applied",
+            "action_type": "ayana.end_session",
+            "job_id": "job-end-1",
+            "summary": "Ayana session ended and recap is opening.",
+        },
+    )
+    assert msg is None
+    state = get_or_create_session_state(sid)
+    assert state.session_ending is True

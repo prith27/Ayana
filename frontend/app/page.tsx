@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { loadMaps3D } from '@/lib/maps/loader'
 import { mapRef } from '@/lib/maps/mapRef'
 import { LiveAgentSession } from '@/components/live-agent/LiveAgentSession'
@@ -136,6 +137,7 @@ function PersonaBadge({ type, visible }: { type: Persona; visible: boolean }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  const router = useRouter()
   const { videoRef, gestureState } = useGestureEngine()
   const agentState = useAgentState()
 
@@ -533,6 +535,10 @@ export default function LandingPage() {
     return openPlaceStreetView(request.placeName)
   }
 
+  async function executeEndSession(): Promise<void> {
+    router.push('/recap')
+  }
+
   return (
     <main className="relative flex h-screen items-center justify-center bg-black overflow-hidden">
       {LIVE_AGENT_ENABLED && persona && prepResponse && (
@@ -543,6 +549,7 @@ export default function LandingPage() {
           onMoveToLandmarkAction={executeLandmarkActivation}
           onShowNearbyAction={executeShowNearby}
           onOpenPlaceStreetViewAction={executeOpenPlaceStreetView}
+          onEndSessionAction={executeEndSession}
           audioPlayerResources={audioPlayerResources}
           onSessionBootstrapped={() => {
             if (itineraryRevealTimerRef.current) {

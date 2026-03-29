@@ -29,6 +29,10 @@ class AyanaSessionState:
     sidebar_visible: bool = False
     street_view_visible: bool = False
     current_street_view_place: dict[str, Any] | None = None
+    visited_landmark_names: list[str] = field(default_factory=list)
+    visited_landmark_count: int = 0
+    wrap_checkpoint_offered: bool = False
+    session_ending: bool = False
     pending_jobs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -309,6 +313,10 @@ def mark_selected_itinerary(
     state.sidebar_visible = False
     state.street_view_visible = False
     state.current_street_view_place = None
+    state.visited_landmark_names = []
+    state.visited_landmark_count = 0
+    state.wrap_checkpoint_offered = False
+    state.session_ending = False
 
 
 def mark_current_landmark(
@@ -337,6 +345,16 @@ def mark_current_landmark(
     state.sidebar_visible = False
     state.street_view_visible = False
     state.current_street_view_place = None
+    state.session_ending = False
+
+    landmark_name = str(landmark.get("landmark_name", "")).strip()
+    landmark_token = _normalize_landmark_token(landmark_name)
+    if landmark_token and all(
+        _normalize_landmark_token(name) != landmark_token
+        for name in state.visited_landmark_names
+    ):
+        state.visited_landmark_names.append(landmark_name)
+        state.visited_landmark_count = len(state.visited_landmark_names)
 
 
 def mark_nearby_places(
@@ -366,9 +384,36 @@ def mark_street_view_opened(
     state.sidebar_visible = False
 
 
+def mark_wrap_checkpoint_offered(session_id: str) -> None:
+    """Record that the post-third-landmark wrap checkpoint was surfaced."""
+    state = get_or_create_session_state(session_id)
+    state.wrap_checkpoint_offered = True
+
+
+def should_offer_wrap_checkpoint(session_id: str) -> bool:
+    """Return whether Ayana should offer the 3-landmark wrap checkpoint now."""
+    state = get_or_create_session_state(session_id)
+    return (
+        state.visited_landmark_count >= 3
+        and not state.wrap_checkpoint_offered
+        and not state.session_ending
+    )
+
+
+def mark_session_ending(session_id: str) -> None:
+    """Persist that the current session has entered an intentional ending flow."""
+    state = get_or_create_session_state(session_id)
+    state.session_ending = True
+
+
 def get_pending_job(
     session_id: str, job_id: str
 ) -> dict[str, Any] | None:
     """Return pending job metadata if present."""
     state = get_or_create_session_state(session_id)
     return state.pending_jobs.get(job_id)
+
+
+def _normalize_landmark_token(value: str) -> str:
+    """Normalize landmark names for session-level visit tracking."""
+    return value.strip().casefold()

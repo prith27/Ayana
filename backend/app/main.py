@@ -54,6 +54,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 # Application name constant
 APP_NAME = "bidi-demo"
 USE_VERTEX_AI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").strip().upper() == "TRUE"
+DEMO_AGENT_VOICE = os.getenv("DEMO_AGENT_VOICE", "Gacrux").strip() or "Gacrux"
 
 # ========================================
 # Phase 1: Application Initialization (once at startup)
@@ -150,6 +151,13 @@ async def websocket_endpoint(
             response_modalities=response_modalities,
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=DEMO_AGENT_VOICE
+                    )
+                )
+            ),
             session_resumption=get_session_resumption_config(),
             proactivity=(
                 types.ProactivityConfig(proactive_audio=True)
@@ -163,6 +171,7 @@ async def websocket_endpoint(
         logger.debug(
             f"Native audio model detected: {model_name}, "
             f"using AUDIO response modality, "
+            f"voice={DEMO_AGENT_VOICE}, "
             f"proactivity={proactivity}, affective_dialog={affective_dialog}"
         )
     else:

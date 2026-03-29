@@ -6,6 +6,7 @@ from google.adk.agents import Agent
 
 from ayana_tools import (
     choose_itinerary,
+    end_session,
     move_to_landmark,
     open_place_street_view,
     show_nearby,
@@ -25,6 +26,7 @@ agent = Agent(
         move_to_landmark,
         show_nearby,
         open_place_street_view,
+        end_session,
     ],
     instruction=build_ayana_instruction,
 )
