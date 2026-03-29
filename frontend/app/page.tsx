@@ -1,6 +1,7 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { loadMaps3D } from '@/lib/maps/loader'
 import { mapRef } from '@/lib/maps/mapRef'
@@ -142,6 +143,7 @@ export default function LandingPage() {
   const agentState = useAgentState()
 
   const [stage, setStage] = useState<Stage>('selectingPersona')
+  const [sessionEnding, setSessionEnding] = useState(false)
   const [persona, setPersona] = useState<Persona | null>(null)
   const [prepResponse, setPrepResponse] = useState<AyanaPrepResponse | null>(null)
   const [selectedGeneratedItineraryId, setSelectedGeneratedItineraryId] = useState<string | null>(null)
@@ -728,6 +730,90 @@ export default function LandingPage() {
         <span>Journey Recap</span>
         <span style={{ opacity: 0.5 }}>↗</span>
       </Link>
+
+      {/* ── Session ending outro overlay ───────────────────────────── */}
+      {sessionEnding && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '20px',
+            background: 'rgba(0,0,0,0)',
+            animation: 'ayanaOutroFadeIn 0.9s cubic-bezier(0.22,1,0.36,1) forwards',
+            pointerEvents: 'all',
+          }}
+        >
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes ayanaOutroFadeIn {
+              from { background: rgba(0,0,0,0); }
+              to   { background: rgba(0,0,0,0.97); }
+            }
+            @keyframes ayanaOutroUp {
+              from { opacity: 0; transform: translateY(18px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes ayanaOutroPulse {
+              0%, 100% { opacity: 0.18; }
+              50%       { opacity: 0.45; }
+            }
+          `}} />
+          <div style={{
+            fontFamily: 'Syne, sans-serif',
+            fontSize: '9px',
+            letterSpacing: '0.38em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.3)',
+            animation: 'ayanaOutroUp 0.7s 0.3s cubic-bezier(0.22,1,0.36,1) both',
+          }}>
+            A · Y · A · N · A
+          </div>
+          <div style={{
+            fontFamily: '"Bodoni Moda", Georgia, serif',
+            fontSize: 'clamp(32px, 7vw, 72px)',
+            fontWeight: 900,
+            color: '#fff',
+            letterSpacing: '-0.01em',
+            textAlign: 'center',
+            lineHeight: 1.05,
+            animation: 'ayanaOutroUp 0.8s 0.5s cubic-bezier(0.22,1,0.36,1) both',
+          }}>
+            Your journey<br />ends here.
+          </div>
+          <div style={{
+            width: '80px',
+            height: '1px',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+            animation: 'ayanaOutroUp 0.6s 0.8s cubic-bezier(0.22,1,0.36,1) both',
+          }} />
+          <div style={{
+            fontFamily: '"Bodoni Moda", serif',
+            fontStyle: 'italic',
+            fontSize: '15px',
+            color: 'rgba(255,255,255,0.3)',
+            letterSpacing: '0.03em',
+            animation: 'ayanaOutroUp 0.6s 1.0s cubic-bezier(0.22,1,0.36,1) both',
+          }}>
+            Preparing your recap…
+          </div>
+          <div style={{
+            position: 'absolute',
+            bottom: '36px',
+            fontFamily: 'Syne, sans-serif',
+            fontSize: '8px',
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.12)',
+            animation: 'ayanaOutroPulse 2s 1.2s ease-in-out infinite',
+          }}>
+            one moment
+          </div>
+        </div>
+      )}
     </main>
   )
 }

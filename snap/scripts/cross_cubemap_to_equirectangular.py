@@ -19,12 +19,13 @@ USAGE:
 OUTPUT:
     ../assets/equirect/{same_basename}.png
 
-Default output size: 2048×1024 (standard 2:1 equirectangular; required by Lens Studio sphere shaders).
+Default output size: 2048×1536 (4:3) for the Ayana sphere workflow in Lens Studio.
+Classic 2:1 equirectangular is still supported when explicitly requested.
 
 ENV:
-    EQUIRECT_WIDTH=2048 EQUIRECT_HEIGHT=1024   # both optional; any explicit pair is honored as-is
-    EQUIRECT_WIDTH=2048 only → height = width/2 (keeps 2:1)
-    EQUIRECT_HEIGHT=1024 only → width = height×2
+    EQUIRECT_WIDTH=2048 EQUIRECT_HEIGHT=1536   # both optional; any explicit pair is honored as-is
+    EQUIRECT_WIDTH=2048 only → height = width×3/4 (keeps 4:3)
+    EQUIRECT_HEIGHT=1536 only → width = height×4/3
 Higher res: set both, e.g. EQUIRECT_WIDTH=4096 EQUIRECT_HEIGHT=2048
 """
 
@@ -50,9 +51,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_INPUT_DIR = SCRIPT_DIR.parent / "assets" / "cubemaps"
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR.parent / "assets" / "equirect"
 
-# Default panorama resolution (4:3). Maps full longitude × latitude; sphere shaders may expect 2:1 — adjust in LS if needed.
+# Default panorama resolution (4:3). Maps full longitude × latitude; classic 2:1 is optional.
 DEFAULT_OUT_W = 2048
-DEFAULT_OUT_H = 1024  # 2:1 ratio — standard equirectangular expected by all sphere shaders
+DEFAULT_OUT_H = 1536  # 4:3 ratio — matches Ayana Lens Studio sphere workflow
 
 
 def extract_faces_cross(img: np.ndarray) -> dict[str, np.ndarray]:
@@ -180,10 +181,10 @@ def convert_file(src: Path, dst: Path, out_w: int, out_h: int) -> None:
 def resolve_output_size(env_w: str, env_h: str) -> tuple[int, int]:
     """
     Output dimensions for the latitude/longitude panorama grid.
-    - Neither env → DEFAULT_OUT_W × DEFAULT_OUT_H (2048×1024, 2:1)
+    - Neither env → DEFAULT_OUT_W × DEFAULT_OUT_H (2048×1536, 4:3)
     - Both set → exact sizes (no forced aspect)
-    - Only width → height = width // 2 (keeps standard 2:1)
-    - Only height → width = height * 2
+    - Only width → height = width * 3/4 (keeps 4:3)
+    - Only height → width = height * 4/3
     """
     if not env_w and not env_h:
         return DEFAULT_OUT_W, DEFAULT_OUT_H
@@ -191,10 +192,10 @@ def resolve_output_size(env_w: str, env_h: str) -> tuple[int, int]:
         return int(env_w), int(env_h)
     if env_w:
         w = int(env_w)
-        h = max(2, w // 2)
+        h = max(2, int(round(w * 3 / 4)))
         return w, h
     h = int(env_h)
-    w = max(2, h * 2)
+    w = max(2, int(round(h * 4 / 3)))
     return w, h
 
 

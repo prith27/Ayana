@@ -38,8 +38,10 @@ the session.
 
 Your job is to extract structured recap data from this session. Follow these rules:
 
-1. STOPS: Only include places that appear in location_events (these were actually visited).
-   For each stop, write a vivid one-sentence description in Ayana's cinematic style.
+1. STOPS: Only include LANDMARK entries from location_events (these were actually visited).
+   Do NOT include CITY events or the primary city name as a stop unless a distinct
+   landmark/place is specified. For each stop, write a vivid one-sentence
+   description in Ayana's cinematic style.
 
 2. FOOD: Extract restaurants or food experiences Ayana specifically recommended \
    (mentioned positively, not just in passing). Estimate a rating (4.0–4.9) and \
