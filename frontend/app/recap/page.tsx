@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext } f
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { loadPersistedTranscript } from '@/lib/ayana/transcript'
+import type { LocationEvent, SessionTranscript } from '@/lib/ayana/transcript'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -172,6 +173,18 @@ function mapBackendToContext(recap: BackendRecap): RecapContextValue {
   }))
 
   return { persona, pc, city: recap.city, country: recap.country, stops, food, activities, stats, dna }
+}
+
+interface LegacyTranscript extends SessionTranscript {
+  location_events?: LocationEvent[]
+}
+
+function getLocationEvents(transcript: SessionTranscript): LocationEvent[] {
+  const modern = Array.isArray(transcript.locationEvents) ? transcript.locationEvents : []
+  const legacy = Array.isArray((transcript as LegacyTranscript).location_events)
+    ? (transcript as LegacyTranscript).location_events ?? []
+    : []
+  return modern.length ? modern : legacy
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1241,7 +1254,13 @@ export default function RecapPage() {
   useEffect(() => {
     async function loadRecap() {
       const transcript = loadPersistedTranscript()
-      if (!transcript || (!transcript.turns.length && !transcript.location_events.length)) {
+      if (!transcript) {
+        setLoadingRecap(false)
+        return
+      }
+
+      const locationEvents = getLocationEvents(transcript)
+      if (!transcript.turns.length && !locationEvents.length) {
         setLoadingRecap(false)
         return
       }
@@ -1253,7 +1272,7 @@ export default function RecapPage() {
           body: JSON.stringify({
             persona: transcript.persona ?? 'adventure',
             turns: transcript.turns,
-            location_events: transcript.location_events,
+            location_events: locationEvents,
           }),
         })
 
