@@ -560,21 +560,27 @@ export default function LandingPage() {
       {/* Persistent Map3DElement */}
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
-      {/* Mic notch — top-left, from city-selection onwards (Horn gesture to toggle) */}
+      {/* Top-left controls */}
       {LIVE_AGENT_ENABLED && (stage === 'selectingGeneratedItinerary' || stage === 'runtimePrimed') && (
-        <div style={{ position: 'absolute', top: 18, left: 18, zIndex: 30 }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 18,
+            left: 18,
+            zIndex: 30,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
           <MicNotch
             gestureState={gestureState}
             micMuted={micMuted}
             onToggle={toggleMic}
           />
-        </div>
-      )}
-
-      {/* Control notch — top-center, city view only */}
-      {stage === 'runtimePrimed' && (
-        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
-          <ControlNotch gestureState={gestureState} />
+          {stage === 'runtimePrimed' && (
+            <ControlNotch gestureState={gestureState} />
+          )}
         </div>
       )}
 
@@ -647,52 +653,6 @@ export default function LandingPage() {
       {/* Persona badge — persists after selection through the whole experience */}
       {persona && (
         <PersonaBadge type={persona} visible={badgeVisible} />
-      )}
-
-      {selectedGeneratedItinerary && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '10px 16px',
-            background: 'rgba(4,4,12,0.48)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '4px',
-            pointerEvents: 'none',
-            opacity: 1,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: '"SF Mono","Fira Code",monospace',
-              fontSize: '9px',
-              letterSpacing: '0.26em',
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.3)',
-            }}
-          >
-            Journey Primed
-          </span>
-          <span
-            style={{
-              fontSize: '13px',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.78)',
-            }}
-          >
-            {selectedGeneratedItinerary.city_name} · {selectedGeneratedItinerary.title}
-          </span>
-        </div>
       )}
 
       {runtimeError && stage === 'selectingGeneratedItinerary' && (

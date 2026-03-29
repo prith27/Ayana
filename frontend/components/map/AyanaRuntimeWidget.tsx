@@ -59,6 +59,8 @@ interface AyanaRuntimeWidgetProps {
   landmarkError: string | null
 }
 
+const SHOW_RUNTIME_CONTROLS = false
+
 export function AyanaRuntimeWidget({
   gestureState,
   itinerary,
@@ -194,7 +196,7 @@ export function AyanaRuntimeWidget({
         onPlacesError={handlePlacesError}
       />
 
-      {!inStreetView && (
+      {SHOW_RUNTIME_CONTROLS && !inStreetView && (
         <div className="absolute bottom-8 left-8 z-10 select-none">
           <div className="bg-black/65 backdrop-blur-md border border-white/10 rounded-2xl p-4 w-72">
             <p className="text-white/40 text-[10px] tracking-widest uppercase mb-1">Location</p>
